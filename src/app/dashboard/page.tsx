@@ -86,9 +86,11 @@ async function AuthenticatedDashboard({ searchParams }: { searchParams: Dashboar
         {selected && <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {sections.map((section, index) => (
             <section key={section.title} aria-labelledby={`section-${index}`} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">Coming soon</span>
+              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">{section.title === 'WhatsApp' ? 'Test environment' : section.title === 'AI Agents' ? 'Preview studio' : 'Coming soon'}</span>
               <h2 id={`section-${index}`} className="mt-5 text-xl font-semibold tracking-tight">{section.title}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">{section.description}</p>
+              {section.title === 'WhatsApp' && <Link prefetch={false} href={`/dashboard/whatsapp?workspace=${encodeURIComponent(selected.id)}`} className="mt-3 inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4">View test connection and messages</Link>}
+              {section.title === 'AI Agents' && <Link prefetch={false} href={`/dashboard/agent?workspace=${encodeURIComponent(selected.id)}`} className="mt-3 inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4">Configure agent and test replies</Link>}
             </section>
           ))}
         </div>}
