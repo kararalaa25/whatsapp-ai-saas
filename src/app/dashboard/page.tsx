@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { connection } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { logout } from '@/app/logout/actions'
+import { loadDashboardState, type DashboardState } from '@/utils/workspaces/access'
 
 type DashboardSearchParams = Promise<{ [key: string]: string | string[] | undefined }>
 
@@ -16,7 +18,8 @@ async function signOut() {
 }
 
 const sections = [
-  { title: 'WhatsApp Conversations', description: 'A place to manage customer conversations on WhatsApp.' },
+  { title: 'WhatsApp', description: 'Connect and manage business WhatsApp accounts.' },
+  { title: 'Conversations', description: 'Manage customer conversations for this business.' },
   { title: 'AI Agents', description: 'Tools to configure and manage your AI assistants.' },
   { title: 'Customers', description: 'A dedicated space for customer relationships.' },
   { title: 'Settings', description: 'Controls for your platform preferences.' },
@@ -26,18 +29,18 @@ async function AuthenticatedDashboard({ searchParams }: { searchParams: Dashboar
   // Wait for the request outside the catch so Next.js rendering signals propagate.
   await connection()
 
-  let authenticated = false
+  const params = await searchParams
+  let state: DashboardState
   try {
-    const supabase = await createClient()
-    const { data, error } = await supabase.auth.getClaims()
-    authenticated = !error && typeof data?.claims?.sub === 'string' && data.claims.sub.length > 0
+    state = await loadDashboardState(await createClient(), params.workspace)
   } catch {
-    authenticated = false
+    state = { status: 'error' }
   }
-
-  if (!authenticated) redirect('/login')
-
-  const showSignOutError = (await searchParams).error === 'signout'
+  if (state.status === 'login') redirect('/login')
+  if (state.status === 'onboarding') redirect('/onboarding')
+  const showSignOutError = params.error === 'signout'
+  const workspaces = 'workspaces' in state ? state.workspaces : []
+  const selected = state.status === 'ready' ? state.selected : null
 
   // Authentication alone grants no tenant data access. Future queries require
   // explicit workspace authorization and Supabase RLS policies.
@@ -54,11 +57,33 @@ async function AuthenticatedDashboard({ searchParams }: { searchParams: Dashboar
           {showSignOutError && (
             <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800">Unable to sign out. Please try again.</p>
           )}
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Welcome to your dashboard</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Your starting point for AI-powered customer conversations. These tools are coming soon.</p>
+          <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight sm:text-4xl">{selected ? selected.name : 'Your business workspaces'}</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Choose a business to manage its workspace. Business tools are coming soon.</p>
         </header>
 
-        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+        <section aria-labelledby="workspaces-heading" className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 id="workspaces-heading" className="text-xl font-semibold tracking-tight">Your workspaces</h2>
+            <Link href="/onboarding" className="inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700">Create a workspace</Link>
+          </div>
+          {state.status === 'error' ? (
+            <p role="alert" className="mt-4 text-sm text-red-800">Unable to verify your workspaces. No business has been selected. <Link href="/dashboard" className="underline underline-offset-4">Try again</Link>.</p>
+          ) : (
+            <>
+              {state.status === 'unauthorized' && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-800">This workspace is unavailable or you do not have access. Choose one of your workspaces below.</p>}
+              <nav aria-label="Switch business workspace" className="mt-4 grid gap-3 sm:grid-cols-2">
+                {workspaces.map((workspace) => (
+                  <Link key={workspace.id} prefetch={false} href={`/dashboard?workspace=${encodeURIComponent(workspace.id)}`} aria-current={selected?.id === workspace.id ? 'page' : undefined} className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:border-emerald-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700 aria-[current=page]:border-emerald-700 aria-[current=page]:bg-emerald-50">
+                    <span className="min-w-0 break-words">{workspace.name}</span>
+                    {selected?.id === workspace.id && <span className="text-xs text-emerald-800">Selected</span>}
+                  </Link>
+                ))}
+              </nav>
+            </>
+          )}
+        </section>
+
+        {selected && <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {sections.map((section, index) => (
             <section key={section.title} aria-labelledby={`section-${index}`} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">Coming soon</span>
@@ -66,9 +91,9 @@ async function AuthenticatedDashboard({ searchParams }: { searchParams: Dashboar
               <p className="mt-2 text-sm leading-6 text-slate-600">{section.description}</p>
             </section>
           ))}
-        </div>
+        </div>}
 
-        <p className="mt-8 max-w-2xl text-sm leading-6 text-slate-500">This is a preview of upcoming features. No workspace has been selected, and no business data is shown.</p>
+        <p className="mt-8 max-w-2xl text-sm leading-6 text-slate-500">{selected ? 'Business tools for the selected workspace are coming soon.' : 'Select an accessible workspace to continue.'}</p>
       </div>
     </main>
   )
