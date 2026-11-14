@@ -126,3 +126,12 @@ test('optional Phase 7B guards enforce automation while keeping disable/handoff 
  assert.match(migration,/NEW.status='pending_human' THEN RETURN NEW/)
  assert.match(migration,/p.features->'automation'='true'/)
 })
+
+test('SQL capacity entitlement treats nullable access as denied', () => {
+ // Contract assertion only: PostgreSQL evaluation and trigger behavior remain
+ // pending live verification. The UI boundary test above covers a null grace.
+ const helper = migration.slice(migration.indexOf('CREATE FUNCTION workspace_private.subscription_limit('), migration.indexOf('-- Private, fixed-unit'))
+ assert.match(helper, /IF workspace_private\.subscription_access\(s\) IS NOT TRUE THEN RETURN 0/)
+ assert.doesNotMatch(helper, /IF NOT workspace_private\.subscription_access\(s\)/)
+ assert.equal(model.hasAccess({ ...subscription, status: 'past_due', grace_ends_at: null }, now), false)
+})

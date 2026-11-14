@@ -238,3 +238,11 @@ The first local build attempt used a node_modules symlink that Turbopack rejecte
 outside its project root. Copying the existing installed dependencies into this
 isolated worktree resolved it; no dependency versions or lockfiles were changed.
 All final results above are from the integrated worktree with local dependencies.
+
+### Merge preparation review
+
+See [Phase 8 merge review](phase8-merge-review.md) for the refreshed branch check,
+nullable-capacity correction, 199-test validation, pending migration order and
+explicit merge blockers. The PR remains draft pending live PostgreSQL verification
+and review of new-customer ingestion rejection at quota/expiry. These checks were
+not performed against a database during merge preparation.

@@ -1,4 +1,4 @@
--- UNAPPLIED Phase 8. Requires migrations 000000 through 040000, never Phase 7B.
+-- UNAPPLIED Phase 8. Requires migrations 000000 through 040000; Phase 7B guards are conditional.
 -- No billing provider access or client subscription mutation is installed.
 BEGIN;
 CREATE TABLE public.subscription_plans (
@@ -116,7 +116,8 @@ CREATE FUNCTION workspace_private.subscription_limit(w uuid, metric text) RETURN
 DECLARE s public.workspace_subscriptions%ROWTYPE; maximum integer;
 BEGIN
  SELECT * INTO STRICT s FROM public.workspace_subscriptions WHERE workspace_id = w;
- IF NOT workspace_private.subscription_access(s) THEN RETURN 0; END IF;
+ -- NULL (for example past_due without a grace deadline) must deny capacity.
+ IF workspace_private.subscription_access(s) IS NOT TRUE THEN RETURN 0; END IF;
  SELECT (limits ->> metric)::integer INTO maximum FROM public.subscription_plans WHERE id = s.plan_id;
  RETURN coalesce(maximum,0);
 END $$;

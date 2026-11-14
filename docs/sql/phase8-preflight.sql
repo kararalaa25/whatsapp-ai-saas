@@ -14,6 +14,15 @@ SELECT n.nspname,c.relname,c.relrowsecurity FROM pg_class c JOIN pg_namespace n 
 SELECT tablename,policyname,roles,cmd,qual,with_check FROM pg_policies WHERE schemaname='public';
 SELECT workspace_id,count(*) AS products FROM public.business_products GROUP BY workspace_id HAVING count(*)>25;
 SELECT workspace_id,count(*) AS members FROM public.workspace_members GROUP BY workspace_id HAVING count(*)>1;
+-- Existing tenants are backfilled to trial, not exempted from insert caps.
+-- Inventory all allocated capacity; disabled numbers/inactive catalog rows count.
+SELECT w.id, p.products, f.faqs, n.numbers, m.members,
+       p.products > 25 OR f.faqs > 25 OR n.numbers > 1 OR m.members > 1 AS above_trial_capacity
+FROM public.workspaces w
+CROSS JOIN LATERAL (SELECT count(*) AS products FROM public.business_products WHERE workspace_id=w.id) p
+CROSS JOIN LATERAL (SELECT count(*) AS faqs FROM public.business_faqs WHERE workspace_id=w.id) f
+CROSS JOIN LATERAL (SELECT count(*) AS numbers FROM public.whatsapp_connections WHERE workspace_id=w.id) n
+CROSS JOIN LATERAL (SELECT count(*) AS members FROM public.workspace_members WHERE workspace_id=w.id) m;
 -- Review migration history manually; Phase 7B is NOT assumed present.
 SELECT version,name FROM supabase_migrations.schema_migrations ORDER BY version;
 ROLLBACK;
