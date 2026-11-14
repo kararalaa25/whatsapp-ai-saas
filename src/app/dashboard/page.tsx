@@ -24,6 +24,7 @@ const sections = [
   { title: 'AI Agents', description: 'Tools to configure and manage your AI assistants.' },
   { title: 'Customers', description: 'A dedicated space for customer relationships.' },
   { title: 'Settings', description: 'Controls for your platform preferences.' },
+  { title: 'Automation', description: 'Owner-only draft automation preferences. Outbound replies remain unavailable.' },
 ]
 
 async function AuthenticatedDashboard({ searchParams }: { searchParams: DashboardSearchParams }) {
@@ -87,9 +88,10 @@ async function AuthenticatedDashboard({ searchParams }: { searchParams: Dashboar
         {selected && <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {sections.map((section, index) => (
             <section key={section.title} aria-labelledby={`section-${index}`} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">{section.title === 'WhatsApp' ? 'Test environment' : section.title === 'AI Agents' ? 'Preview studio' : section.title === 'Conversations' ? 'Owner-only test inbox' : section.title === 'Knowledge Base' ? 'Owner management' : 'Coming soon'}</span>
+              <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">{section.title === 'WhatsApp' ? 'Test environment' : section.title === 'AI Agents' ? 'Preview studio' : section.title === 'Conversations' ? 'Owner-only test inbox' : section.title === 'Knowledge Base' ? 'Owner management' : section.title === 'Automation' ? 'Draft only · delivery disabled' : 'Coming soon'}</span>
               <h2 id={`section-${index}`} className="mt-5 text-xl font-semibold tracking-tight">{section.title}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">{section.description}</p>
+              {section.title === 'Automation' && <Link prefetch={false} href={`/dashboard/automation?workspace=${encodeURIComponent(selected.id)}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-800 underline">Configure draft automation</Link>}
               {section.title === 'WhatsApp' && <Link prefetch={false} href={`/dashboard/whatsapp?workspace=${encodeURIComponent(selected.id)}`} className="mt-3 inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4">View test connection and messages</Link>}
               {section.title === 'Conversations' && <Link prefetch={false} href={`/dashboard/inbox?workspace=${encodeURIComponent(selected.id)}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-800 underline">Open WhatsApp conversation inbox</Link>}
               {section.title === 'Knowledge Base' && <Link prefetch={false} href={`/dashboard/knowledge?workspace=${encodeURIComponent(selected.id)}`} className="mt-3 inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4">Manage business knowledge</Link>}
