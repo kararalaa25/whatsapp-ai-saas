@@ -1,0 +1,26 @@
+{
+  "checks": [
+    "PASS: Arabic homepage, links and no overflow at 390px",
+    "PASS: signup navigation and empty-form browser validation at 390px",
+    "PASS: recovery discovery, email validation and English switch at 390px",
+    "PASS: missing Auth configuration fails closed at 390px (not authenticated integration)",
+    "PASS: unauthenticated dashboard redirects to login at 390px",
+    "PASS: Arabic homepage, links and no overflow at 1440px",
+    "PASS: signup navigation and empty-form browser validation at 1440px",
+    "PASS: recovery discovery, email validation and English switch at 1440px",
+    "PASS: missing Auth configuration fails closed at 1440px (not authenticated integration)",
+    "PASS: unauthenticated dashboard redirects to login at 1440px"
+  ],
+  "scope": "Local public UI and safe missing-configuration failures only; no real Auth/database",
+  "realAuth": "NOT TESTED",
+  "application_commit": "b537cb270075159980acc99ec9249a18020be2cb",
+  "date": "2026-11-15",
+  "timezone": "Asia/Baghdad",
+  "playwright": "1.65.1",
+  "chromium": "156.0.8078.79",
+  "screenshots": [
+    "screenshots/home-mobile.png",
+    "screenshots/home-desktop.png",
+    "screenshots/recovery-mobile.png"
+  ]
+}
