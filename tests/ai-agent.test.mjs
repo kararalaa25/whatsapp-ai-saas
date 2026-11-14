@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url)
 function load(path, deps = {}, env = {}, globals = {}) {
   const context = { ...globals, exports: {}, process: { env }, require(name) {
     if (name === 'server-only') return {}
+    if (name === '@/utils/knowledge/retrieval') return { MAX_KNOWLEDGE_CHARS: 10000, MAX_KNOWLEDGE_ITEMS: 8, retrieveKnowledge: async () => ({ available: true, entries: [] }) }
     if (name in deps) return deps[name]
     return require(name)
   } }

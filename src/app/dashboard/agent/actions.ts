@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { requireAgentOwner } from '@/utils/ai/access'
 import { defaultSettings, settingsSchema, type AgentSettings, type ChatMessage, type Conversation } from '@/utils/ai/settings'
+import { retrieveKnowledge } from '@/utils/knowledge/retrieval'
 import { generateReply } from '@/utils/ai/reply'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -133,11 +134,13 @@ export async function previewReply(workspaceId: string, conversationId: string |
       settings = settingsSchema.parse(saved.data)
     }
     if (!settings.enabled) return { ok: false, error: 'Enable agent previews first. OpenAI uses the saved setting; demo uses the editor.' }
+    const knowledge = await retrieveKnowledge(supabase, workspace.id, message)
+    if (mode === 'openai' && !knowledge.available) return { ok: false, error: 'Business knowledge could not be loaded. Check owner access and knowledge storage, or use simulated demo mode.' }
     if (mode === 'openai') {
       const { error } = await supabase.rpc('reserve_ai_preview', { p_workspace_id: workspace.id })
       if (error) return { ok: false, error: error.code === '54000' ? 'Daily OpenAI preview limit reached. Demo mode is still available.' : 'OpenAI preview could not be authorized. Check saved settings and workspace access.' }
     }
-    const reply = await generateReply(settings, history, message, mode)
+    const reply = await generateReply(settings, history, message, mode, undefined, knowledge.entries)
 
     if (snapshot && conversationId) {
       const { error } = await supabase.rpc('save_ai_turn', {
