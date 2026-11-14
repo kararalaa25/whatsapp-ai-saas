@@ -10,6 +10,7 @@ function load(path, dependencies = {}) {
   const context = { exports: {}, require(name) {
     if (name in dependencies) return dependencies[name]
     if (name === 'server-only') return {}
+    if (name === '@/utils/inbox/guard') return load('../src/utils/inbox/guard.ts')
     if (name === './matching' || name === '@/utils/knowledge/matching') return load('../src/utils/knowledge/matching.ts')
     if (name === './context' || name === '@/utils/ai/context') return load('../src/utils/ai/context.ts')
     return require(name)

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { requireAgentOwner } from '@/utils/ai/access'
 import { defaultSettings, settingsSchema, type AgentSettings, type ChatMessage, type Conversation } from '@/utils/ai/settings'
+import { legacyInboxGenerationAllowed } from '@/utils/inbox/guard'
 import { boundedHistory } from '@/utils/ai/context'
 import type { KnowledgePreview } from '@/utils/knowledge/types'
 import { retrieveKnowledge } from '@/utils/knowledge/retrieval'
@@ -148,6 +149,7 @@ export async function previewReply(workspaceId: string, conversationId: string |
       settings = settingsSchema.parse(saved.data)
     }
     if (!settings.enabled) return { ok: false, error: 'Enable agent previews first. OpenAI uses the saved setting; demo uses the editor.' }
+    if (snapshot?.conversation.channel === 'whatsapp_test' && !await legacyInboxGenerationAllowed(supabase, workspace.id, snapshot.conversation.id, snapshot.conversation.revision)) return { ok: false, error: 'Inbox controls, generation limits, agent settings, or access block this preview. Review the WhatsApp inbox and refresh before retrying.' }
     const context = boundedHistory(history)
     const retrieved = await retrieveKnowledge(supabase, workspace.id, message, context)
     const knowledge: KnowledgePreview = { ...retrieved, historyUsed: retrieved.historyUsed ?? false, historyMessages: context.length }
