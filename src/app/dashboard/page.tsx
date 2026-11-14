@@ -65,6 +65,7 @@ async function AuthenticatedDashboard({ searchParams }: { searchParams: Dashboar
 
         <section aria-labelledby="workspaces-heading" className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Link href={selected ? `/dashboard/billing?workspace=${encodeURIComponent(selected.id)}` : "/dashboard"} className="text-sm font-semibold text-emerald-800 underline">Subscription / الاشتراك</Link>
             <h2 id="workspaces-heading" className="text-xl font-semibold tracking-tight">Your workspaces</h2>
             <Link href="/onboarding" className="inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700">Create a workspace</Link>
           </div>

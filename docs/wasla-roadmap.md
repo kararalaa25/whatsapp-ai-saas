@@ -13,14 +13,14 @@ or automatic replies. Phase 7A and Phase 7B migrations remain unapplied pending
 separate review/application and live database verification. See
 [Phase 7B documentation](phase7b-whatsapp-automation.md).
 
-## Phase 8 — future development on a separate branch
+## Phase 8 — subscriptions and usage (preview, migrations unapplied)
 
-Proposed scope: review product readiness, team/customer workflows, usage and
-operational observability, retention controls and owner review experience. Agree
-its concrete scope before implementation. Phase 8 may be developed on its own
-branch; this task does not inspect, modify, merge or activate Phase 8 work.
-Phase 8 must preserve the outbound hard stop unless a separately authorized
-activation milestone explicitly changes it.
+Implemented on `feature/phase-8-subscriptions`: centrally configurable provisional
+plans, workspace trials and entitlements, server/database capacity guards,
+idempotent atomic usage reservations, owner-only English/Arabic billing previews,
+and disabled provider-neutral billing contracts. No real billing, sending or
+production activation is authorized. See [Phase 8 documentation](phase8-subscriptions.md)
+for migration dependencies, Phase 7B integration and remaining live DB checks.
 
 ## Phase 9 — isolated readiness verification
 

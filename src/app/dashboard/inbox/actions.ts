@@ -102,11 +102,12 @@ export async function markInboxRead(workspaceId: string, id: string, seenPositio
     return readInbox(workspace.id, row.id)
   } catch { return { ok: false, error: errorMessage() } }
 }
-async function createDraft(workspaceId: string, id: string, mode: 'demo' | 'openai' | 'manual', manual = '', expectedPosition?: number): Promise<Result<InboxDetail>> {
+async function createDraft(workspaceId: string, id: string, mode: 'demo' | 'openai' | 'manual', manual = '', expectedPosition?: number, expectedGenerationRevision?: number): Promise<Result<InboxDetail>> {
   const { supabase, workspace, row } = await conversation(workspaceId, id)
   const loaded = await readInbox(workspace.id, row.id)
   if (!loaded.ok) return loaded
   const detail = loaded.data
+  if (mode === 'openai' && (!Number.isInteger(expectedGenerationRevision) || expectedGenerationRevision !== detail.conversation.revision)) return { ok: false, error: 'Conversation changed or request revision is missing. Refresh before generating a new provider draft.' }
   if (detail.state.status === 'closed') return { ok: false, error: 'Reopen this conversation first.' }
   const latest = detail.messages.at(-1)
   if (!latest) return { ok: false, error: 'No verified inbound text is available.' }
@@ -135,8 +136,8 @@ async function createDraft(workspaceId: string, id: string, mode: 'demo' | 'open
     const reserved = await supabase.rpc('reserve_whatsapp_inbox_generation', { p_workspace_id: workspace.id, p_conversation_id: row.id, p_revision: detail.conversation.revision, p_position: latest.position })
     if (reserved.error) return { ok: false, error: reserved.error.code === '54000' ? 'Generation rate limit reached (6/minute, 100/day per owner). Try later or write a manual draft.' : 'Generation blocked by changed conversation, human control, or access. Refresh first.' }
     if (mode === 'openai') {
-      const { error } = await supabase.rpc('reserve_ai_preview', { p_workspace_id: workspace.id })
-      if (error) return { ok: false, error: 'OpenAI preview budget or authorization unavailable. No provider request was made.' }
+      const { data: fresh, error } = await supabase.rpc('reserve_subscription_ai', { p_workspace_id: workspace.id, p_conversation_id: row.id, p_revision: detail.conversation.revision, p_surface: 'inbox' })
+      if (error || fresh !== true) return { ok: false, error: 'OpenAI preview budget or authorization unavailable. No provider request was made.' }
     }
     content = await generateReply(settings, history.slice(-20), latest.content, mode, undefined, refs)
   }
@@ -149,8 +150,8 @@ async function createDraft(workspaceId: string, id: string, mode: 'demo' | 'open
   const result = await readInbox(workspace.id, row.id)
   return result.ok ? { ...result, notice: 'Draft saved locally — NOT SENT. Review before any future delivery workflow.' } : result
 }
-export async function generateInboxDraft(workspaceId: string, id: string, mode: 'demo' | 'openai'): Promise<Result<InboxDetail>> {
-  try { z.enum(['demo', 'openai']).parse(mode); return await createDraft(workspaceId, id, mode) }
+export async function generateInboxDraft(workspaceId: string, id: string, mode: 'demo' | 'openai', expectedRevision?: number): Promise<Result<InboxDetail>> {
+  try { z.enum(['demo', 'openai']).parse(mode); return await createDraft(workspaceId, id, mode, '', undefined, expectedRevision) }
   catch { return { ok: false, error: 'Draft generation failed. Nothing was sent; check owner access, storage, and agent settings.' } }
 }
 export async function createManualInboxDraft(workspaceId: string, id: string, content: string, expectedPosition: number): Promise<Result<InboxDetail>> {
