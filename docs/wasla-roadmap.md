@@ -32,6 +32,13 @@ deployment, credentials and real sending remain separate approvals.
 
 ## Final activation milestones — each requires independent authorization
 
+Preparation for these milestones is documented in the
+[integration readiness report](integration-readiness.md),
+[manual SQL Editor runbook](manual-supabase-migrations.md), and
+[local Terminal/browser guide](local-supabase-testing.md). These documents do not
+authorize shared migrations, merge, deployment or provider activation; actual
+Supabase Auth/PostgREST/SSR/browser verification remains open.
+
 1. Review/apply schema dependencies in an authorized test environment; verify
    RLS, grants, direct-RPC defenses and race behavior with synthetic tenants.
 2. Approve retention, consent, provider/data handling and WhatsApp policy
