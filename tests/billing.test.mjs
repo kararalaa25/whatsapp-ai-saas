@@ -135,3 +135,66 @@ test('SQL capacity entitlement treats nullable access as denied', () => {
  assert.doesNotMatch(helper, /IF NOT workspace_private\.subscription_access\(s\)/)
  assert.equal(model.hasAccess({ ...subscription, status: 'past_due', grace_ends_at: null }, now), false)
 })
+
+const billingWorkspace = { id: '00000000-0000-4000-8000-000000000001', name: 'Verified shop' }
+function billingResponse() {
+ return {
+  plans: ['trial','starter','pro','business'].map(id => ({...plan,id})),
+  subscription: {...subscription,workspace_id:billingWorkspace.id},
+  usage: {ai_generations:3,whatsapp_test_conversations:4,products:2},
+  period_start:'2026-11-01T00:00:00+00:00',period_end:'2026-12-01T00:00:00+00:00',
+ }
+}
+function billingReader() {
+ return load('../src/utils/billing/access.ts',{'@/utils/ai/access':{requireAgentOwner:async()=>billingWorkspace}})
+}
+test('billing response cannot replace the verified workspace with extra RPC fields',async()=>{
+ const data={...billingResponse(),workspace:{id:'foreign',name:'Foreign'},available:false}
+ const panel=await billingReader().loadBillingPanel({rpc:async()=>({data,error:null})},billingWorkspace.id)
+ assert.equal(panel.available,true)
+ assert.equal(panel.workspace.id,billingWorkspace.id)
+ assert.equal(panel.subscription.workspace_id,billingWorkspace.id)
+})
+test('billing rejects foreign, incomplete and malformed RPC contracts before rendering',async()=>{
+ const cases=[{},[],{...billingResponse(),subscription:{...billingResponse().subscription,workspace_id:'00000000-0000-4000-8000-000000000002'}},
+  {...billingResponse(),subscription:{...billingResponse().subscription,status:'unknown'}},
+  {...billingResponse(),subscription:{...billingResponse().subscription,trial_ends_at:'invalid'}},
+  {...billingResponse(),usage:{products:-1}},
+  {...billingResponse(),plans:[plan]},
+  {...billingResponse(),plans:[plan,plan,plan,plan]},
+  {...billingResponse(),plans:billingResponse().plans.map(p=>({...p,prices:null}))},
+  {...billingResponse(),period_end:'2026-10-01T00:00:00Z'}]
+ for(const data of cases){
+  const result=await billingReader().loadBillingPanel({rpc:async()=>({data,error:null})},billingWorkspace.id)
+  assert.equal(result.available,false)
+  assert.equal(result.workspace.id,billingWorkspace.id)
+ }
+})
+test('billing accepts the installed RPC JSON contract for every supported subscription state',async()=>{
+ for(const status of ['trialing','active','past_due','canceled','expired']){
+  const data=billingResponse();data.subscription.status=status
+  const result=await billingReader().loadBillingPanel({rpc:async(name,args)=>{
+   assert.equal(name,'get_workspace_billing');assert.equal(args.p_workspace_id,billingWorkspace.id)
+   return {data,error:null}
+  }},billingWorkspace.id)
+  assert.equal(result.available,true)
+  assert.equal(result.subscription.status,status)
+  assert.equal(result.usage.whatsapp_test_conversations,4)
+ }
+})
+test('expired English dashboard preserves history notice and blocks zero-limit usage without payment controls',async()=>{
+ const p=page({workspace:billingWorkspace,available:true,subscription:{...subscription,trial_ends_at:'2020-01-01',period_ends_at:'2020-01-01'},plans:[plan],usage:{whatsapp_test_conversations:4},period_start:'2026-11-01',period_end:'2026-12-01'})
+ const html=renderToStaticMarkup(await p.BillingContent({searchParams:Promise.resolve({workspace:billingWorkspace.id})}))
+ assert.match(html,/Historical records are preserved/)
+ assert.match(html,/4 \/ 0/)
+ assert.match(html,/Limit reached/)
+ assert.match(html,/expired/)
+ assert.match(html,/disabled=""/)
+ assert.doesNotMatch(html,/payment successful|checkout|sent successfully/i)
+})
+test('billing transport rejection returns only unavailable state without leaking the exception',async()=>{
+ const result=await billingReader().loadBillingPanel({rpc:async()=>{throw Error('synthetic private transport detail')}},billingWorkspace.id)
+ assert.equal(result.available,false)
+ assert.equal(result.workspace.id,billingWorkspace.id)
+ assert.doesNotMatch(JSON.stringify(result),/private transport detail|plans|subscription/)
+})
