@@ -56,7 +56,8 @@ export async function POST(request: Request) {
       await deliverMessages(messages, allowedIds, createIngestor())
     }
   } catch {
-    // Meta retries non-2xx responses. Already inserted messages deduplicate.
+    // At least one event was not durably accepted. Later batch events were
+    // still attempted; committed inserted/deferred events deduplicate on retry.
     return reply('Temporarily unavailable', 503)
   }
   return reply('EVENT_RECEIVED', 200)

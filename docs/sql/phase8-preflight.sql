@@ -6,7 +6,8 @@ SELECT name, to_regclass(name) AS relation FROM unnest(ARRAY[
  'public.ai_conversations','public.business_products','public.business_faqs',
  'public.whatsapp_inbox_state','public.whatsapp_reply_drafts',
  'public.whatsapp_automation_settings','public.whatsapp_automation_runs',
- 'public.workspace_subscriptions']) name;
+ 'public.workspace_subscriptions','workspace_private.whatsapp_intake',
+ 'workspace_private.whatsapp_intake_reconciliation']) name;
 SELECT name, to_regprocedure(name) AS procedure FROM unnest(ARRAY[
  'workspace_private.is_workspace_owner(uuid)', 'public.reserve_ai_preview(uuid)',
  'public.ingest_whatsapp_ai_test_message(text,text,text,text,text,timestamp with time zone,text)']) name;

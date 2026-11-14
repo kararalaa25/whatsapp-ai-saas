@@ -1,155 +1,230 @@
 # Phase 8 merge preparation review
 
-## Verified branch state
+## Branch and disposition
 
-Remote heads were fetched explicitly before review:
+This retention fix starts at `23e3748d45562fa6d03d661f9c5413112784fea6` on
+`feature/phase-8-subscriptions`, with main still
+`7f8cb2014185dd9275f0145929fe200b961b9849` (Phase 7B). The worktree was clean.
+Only the feature branch and PR #1 are updated. Main and the original interrupted
+checkout are untouched. PR #1 remains draft and must not be merged automatically.
 
-- `main`: `7f8cb2014185dd9275f0145929fe200b961b9849` (Phase 7B).
-- `feature/phase-8-subscriptions`: `ed124c17a6acaea3d07ce2260a5da586272a9156` at review start.
-- `git rev-list --left-right --count origin/main...origin/feature/phase-8-subscriptions`: `0 1`.
+No migration, preflight or postflight SQL was executed. No credentials, provider
+requests, deployment, payment activation or WhatsApp sending were performed.
 
-The feature worktree was clean at review start. The original checkout's interrupted
-untracked work was not changed. Review corrections and this report are an additional
-feature-branch commit; main is not modified. No automatic merge is authorized here.
+## Resolved code blocker: subscription denial rolled back verified intake
 
-## Review findings and correction
+Previously, the new-conversation quota trigger raised inside the same unprotected
+transaction as raw-message insertion. Quota/expiry denial rolled back the verified
+inbound row, and the webhook stopped processing the rest of its batch. That code
+path has been replaced in the **unapplied Phase 8 migration**. No earlier migration
+was edited, and no migration application or live PostgreSQL reproduction is claimed.
 
-### Corrected: nullable access must deny capacity
+### Durable acceptance and entitlement-controlled projection
 
-The pending Phase 8 `subscription_limit` helper previously used
-`IF NOT subscription_access(s)`. A `past_due` row without `grace_ends_at` is allowed
-by the table definition, and `subscription_access` returns SQL NULL for it. In
-PL/pgSQL `IF NOT NULL` does not enter the rejection branch, so product/FAQ/number/
-member additions could retain a positive capacity while the dashboard and AI
-reservation path denied access. Current trusted transitions set a grace deadline,
-and clients cannot write subscription rows, so this was a defensive fail-closed
-inconsistency rather than a demonstrated owner upgrade path.
+The existing public `ingest_whatsapp_ai_test_message` RPC is replaced **in place**,
+retaining its signature and service-role-only execution. It resolves the workspace
+from the trusted test connection mapping and locks the workspace before connection,
+intake and conversation changes. The caller never supplies a tenant or price.
 
-The helper now uses `IS NOT TRUE`, denying both false and unknown access. The
-unapplied Phase 8 file alone was corrected; Phase 7A/7B and earlier migration files
-were not changed. A source-contract regression and the existing null-grace UI
-boundary check cover intent. Actual PostgreSQL/trigger evaluation is still untested.
-The preflight now inventories all four allocated capacity types, including inactive
-catalog entries and disabled numbers, against initial trial defaults.
+It inserts/deduplicates `whatsapp_inbound_messages` first. Eligible text with a
+sender gets a private intake record referencing that authoritative row. Processing
+then occurs inside a PL/pgSQL exception subtransaction. A conversation-quota error
+rolls back only projection, conversation state and usage changes; the raw message
+and intake record survive. Other catchable processing errors similarly preserve
+the raw message, with a sanitized failure code and bounded failure count. Successful
+projection still creates only a verified `customer` message, never an AI reply.
 
-### Blocking review item: new-customer ingress at quota/expiry
+Quota/expiry denial returns `deferred`, which the server adapter recognizes as
+**durable acceptance**. A 200 response for in-scope message events means the RPC
+committed an inserted message, an already persisted exact duplicate, or a retained
+deferred event. An ambiguous/unrecognized RPC result, storage error or overflow
+returns 503, not a false success. Status-only events, unallowlisted phone IDs and
+unmapped phone/WABA pairs retain their explicit out-of-scope ignore behavior; they
+are not reported as accepted customer messages.
 
-The Phase 8 conversation meter intentionally raises `54000` when a new test-customer
-conversation exceeds the monthly quota or effective subscription access expires.
-The Phase 5B ingestor first inserts the authoritative inbound row and then inserts/
-upserts its conversation in the same RPC transaction. Consequently, that exception
-rolls back the inbound row as well as the new conversation. The unchanged webhook
-route responds with 503; sequential batch processing stops at that event. Repeated
-rejection can delay later events in the same batch. Existing-customer upserts follow
-the UPDATE branch and do not consume another conversation unit; existing history
-is not deleted.
+Provider message IDs remain globally unique. Duplicate IDs are checked against
+tenant, connection, message type, text and provider timestamp; intake sender or
+existing projected-customer identity is checked when supplied. A foreign/colliding
+identity fails rather than acknowledging another tenant's row. Replayed deferred
+messages return duplicate without processing, changing counters or consuming retry
+budgets. Old already-projected Phase 5B rows need no intake backfill. Old retained
+but unprojected text can enroll when replayed with a trusted sender; no bulk or
+fabricated historical-message backfill is run.
 
-This is a code-path finding, **not a live PostgreSQL reproduction**. Before merge,
-reviewers must resolve or explicitly accept the ingress policy and verify it with
-synthetic new/existing customers, exhausted quota, expired trials, batched events
-and provider retries. If verified inbound must always be retained, implement a
-separate durable over-limit intake/reprocessing policy before activation; merely
-returning 200 after dropping an event or swallowing the quota error is unsafe.
-No such behavior change or provider interaction was made during this review.
+Mapped disabled test connections retain verified events but defer projection until
+a trusted administrator reactivates the mapping. Unknown mappings are still ignored.
+Unsupported/senderless events retain their original minimal raw representation and
+cannot create customer conversations. No contact profiles, payload envelopes,
+media, credentials or duplicate body copies enter the new intake table.
 
-## Reviewed security and integration boundaries
+### Bounded over-limit state and explicit backpressure
 
-- Workspace selection, claims checks, owner lookup and membership RLS helpers are
-  unchanged from main. Billing reuses `requireAgentOwner`; its public SQL RPCs
-  independently check the authenticated workspace owner.
-- AI generation still uses server-loaded saved settings and tenant-filtered history/
-  knowledge. Provider requests require the UI-observed conversation revision; stale
-  or missing revisions fail before reservation/provider dispatch. Studio and Inbox
-  share the DB conversation/revision operation key. A duplicate false result denies
-  another call, including cross-surface retries.
-- The monthly reservation and original per-owner daily preview cap execute together
-  in one RPC transaction. Phase 7A attempt-rate limits are preserved. Reservations
-  retained after ambiguous provider failures are potential usage, not confirmed
-  successful generations or charges. Recovery requires reconciliation rather than
-  blindly freeing quota; conservative reservations can block further use of that
-  revision even after rollover.
-- All new tables enable RLS. Central plan definitions are intentionally readable by
-  authenticated users; subscription rows are owner-scoped. Private counters,
-  reservations, audit, invoices and payment events have no client data grants.
-  Public RPCs explicitly revoke default execution before narrow grants. Private
-  helpers/transitions have no PUBLIC/anon/authenticated/service-role execution.
-  Static review found no new cross-tenant policy or unintended client write grant.
-- Definer functions have an empty search path and fixed qualified relations.
-  Their actual owner, installed ACLs, default-privilege effects and behavior under
-  impersonated roles remain live-database checks. Keep `workspace_private` outside
-  the exposed API schemas; definer ownership is a trusted administrator boundary.
-- Existing tenants receive one trial at eventual migration application. Current
-  records above trial capacity are retained and can be edited/read under original
-  access rules; additions are blocked. In-place UPDATEs do not recheck capacity;
-  tenant reassignment is denied. Initial owner creation depends on transactional
-  subscription initialization before membership insertion. Verify trigger ordering,
-  count visibility and locking on PostgreSQL rather than relying on mocks.
-- All tenants' trials eventually expire, while paid activation/renewal remain disabled.
-  Applying this preview can therefore stop new usage without a customer payment
-  recovery path. Review the activation/backfill policy before applying anything.
-- The ingress wrapper moves the unchanged old function to the private schema,
-  retains only the public verified-ingress service-role grant, and locks workspace
-  before conversation writes. Signature verification, test-number mapping and
-  outbound hard stops remain unchanged. Verify the entire trigger/lock chain,
-  function identity/schema change, duplicate upserts and deadlock behavior live.
-- Phase 7B settings/run guards are installed conditionally when its tables exist.
-  They enforce automation access on writes, allow disabling, and preserve the
-  pending-human transition. Draft completion is rechecked. Trial/Pro/Business
-  support the existing simulator; Starter does not. No live automation or outbound
-  sending is enabled. Existing expired/downgraded configurations must be tested.
-- Public billing acceptance remains unconditionally disabled; no billing webhook,
-  payment credential, checkout or event-to-entitlement activation exists. No public
-  subscription upgrade mutation was introduced.
+`workspace_private.whatsapp_intake` stores source/connection references, sender ID,
+status, reason, failure count and timing metadata. All tables and its identity
+sequence deny client access; all tables enable RLS. Tenant-composite FKs and
+explicit tenant/connection joins protect reads/projection. Accepted order is a
+private monotonic identity assigned under the workspace lock, rather than an
+untrusted provider timestamp or a transaction-start timestamp. An unresolved
+predecessor blocks newer projection for the same customer, not other customers.
+
+At most **1000 unresolved eligible text events per workspace** may be retained in
+this deferred state. The capacity decision occurs **after** projection: even with
+1000 outstanding events, an existing customer's processable message can commit
+without occupying a new unresolved slot. If an event still requires a 1001st slot,
+the entire acceptance of that event fails, its raw/queue inserts roll back, and the
+webhook returns 503. No acknowledged event is evicted, silently dropped or expired.
+This is deliberate storage backpressure, not a promise of unlimited intake. Source
+history and compact processed metadata remain durable; no destructive cleanup job
+is installed. Retention/deletion policy still needs a separately reviewed milestone.
+
+At hard capacity or during a storage outage, upstream events still depend on the
+provider's finite retry window. Before activation, operators must review capacity,
+monitor backlog/failed counts and provide a saturation response/runbook. This
+operational limit is **not** presented as lossless unlimited storage.
+
+### Batch progress even when one acceptance fails
+
+`deliverMessages` now attempts every allowlisted event independently. It records
+whether any acceptance failed and throws a generic aggregate failure only after
+later events were attempted. Thus a saturated tenant/customer or transient fault
+cannot permanently starve a later processable event in that batch. The overall
+response remains 503 if any in-scope event was unpersisted; successful events remain
+committed and deduplicate when the provider retries the whole batch. No message
+body, provider exception or tenant identity appears in the failure response.
+
+### Owner-only inspection and reconciliation
+
+`/dashboard/intake?workspace=<uuid>` is linked from the inbox and supports bilingual
+English/Arabic labels, direction-aware message bodies, masked customer suffixes
+and 25-row pages. It remains accessible to the workspace owner after expiry.
+`get_whatsapp_intake` checks ownership in SQL and returns only that tenant's
+outstanding rows and bounded counts. Raw tables retain their prior access policies;
+no new member/client data grant is added.
+
+`reconcile_whatsapp_intake` independently verifies ownership, locks the workspace,
+and processes at most **25 eligible rows per invocation**, at most **once per
+minute** per workspace. Deferred/faulted events wait **5 minutes** between attempts.
+The workspace lock and source-message uniqueness serialize webhook/reconciliation
+races. Catchable processing faults are capped at **5 failures per event**. Quota,
+predecessor and disabled-connection deferrals do not exhaust that fault budget.
+After five faults the record remains retained for a trusted administrator to
+diagnose; there is no public attempt-reset or subscription-override API. Resolving
+such records requires separately authorized corrective administrator work.
+
+Reconciliation reuses the same protected projection helper. It cannot mark events
+processed without an authoritative existing/inserted `ai_messages` row. Creating a
+new conversation still invokes the unchanged Phase 8 atomic monthly meter and
+effective subscription checks. Rollover can permit a still-eligible workspace to
+process backlog; an expired trial cannot recover new-conversation entitlement just
+by waiting or retrying. Existing customer history may continue to append even after
+expiry; Phase 7A reopening/human-control triggers still apply. New drafts, AI
+provider calls and automation remain separately entitlement-controlled. Neither
+reconciliation nor retention invokes an AI provider, automation engine or transport.
+
+The old raw-only `ingest_whatsapp_test_message` service-role grant is revoked by
+Phase 8 to close the alternate intake path. Existing application ingestion already
+uses the Phase 5B RPC; no application caller uses the retired raw-only RPC. Verify
+external compatibility before application. Private processing has no client or
+service-role execute grant; owner APIs use the request-scoped authenticated client,
+never the ingestion credential. All new functions use an empty search path.
+
+## Trial backfill, capacity and billing review
+
+Existing tenants still receive one configurable trial only at eventual migration
+application. There is no retry-triggered trial reset, migration replay policy or
+bulk paid seed. Current data above trial capacity remains readable/editable under
+existing access rules; additions retain strict caps. Trial expiry blocks new billed
+usage/feature processing while verified inbound acceptance and owner backlog
+inspection remain available subject to the separate intake safety capacity.
+
+Paid activation, renewals and recovery to paid active state remain disabled. Before
+applying this preview, review the trial duration/backfill policy and the fact that
+new customer conversations can remain deferred after trials expire without a paid
+recovery path. Reconciliation never changes subscription state, period, price or
+entitlements. No rollout or trial-extension mechanism is silently provisioned.
+
+The prior nullable-capacity fix remains: `subscription_access(s) IS NOT TRUE`
+returns zero capacity for false **or SQL NULL** access, including past_due with a
+missing grace deadline. Its actual DB evaluation remains a live verification gate.
+
+## Other security boundaries reviewed
+
+Workspace/claims/owner helpers, existing RLS policies and signature/raw-body
+verification are unchanged. Client-supplied workspace IDs in webhook payloads do
+not route events. New private intake tables/sequence have explicit revoked grants;
+public intake reads/reconciliation recheck owner identity. Static review found no
+new cross-tenant policy or unintended client data mutation grant. Actual object
+owners/default ACLs and impersonation behavior still require live verification.
+
+AI reservations still require the UI-observed revision and a fresh shared
+conversation/revision key. Original daily abuse caps and Phase 7A attempt limits
+remain. Ambiguous provider failures retain conservative reservations rather than
+risk duplicate provider usage. Billing acceptance and outbound transport remain
+unconditionally disabled. Phase 7B conditional settings/run guards still enforce
+plan access, with disable and pending-human paths preserved.
 
 ## Pending migrations and required order
 
-No migration or preflight/postflight SQL was executed. The recommended pending
-chain is:
+1. Verify actual foundation/WhatsApp/playground/knowledge migration history through
+   `20261114030000`; do not assume database state.
+2. Phase 7A: `supabase/migrations/20261114040000_whatsapp_conversation_inbox.sql` — pending.
+3. Phase 7B: `supabase/migrations/20261114050000_whatsapp_automation_draft_engine.sql` — pending.
+4. Phase 8: `supabase/migrations/20261114180000_phase8_subscriptions.sql` — pending,
+   now includes retention/reconciliation in the same unapplied file.
 
-1. Existing foundation through knowledge/catalog (`000000` through `030000`),
-   verifying actual migration history rather than assuming application state.
-2. `supabase/migrations/20261114040000_whatsapp_conversation_inbox.sql` (Phase 7A, pending).
-3. `supabase/migrations/20261114050000_whatsapp_automation_draft_engine.sql` (Phase 7B, pending).
-4. `supabase/migrations/20261114180000_phase8_subscriptions.sql` (Phase 8, pending).
+No migration/preflight/postflight was executed. Read-only scripts:
+`docs/sql/phase8-preflight.sql`, `docs/sql/phase8-postflight.sql`. They inventory
+capacity, intake ownership/grants and backlog invariants without write tests.
+If Phase 8 is applied without Phase 7B, its optional automation guards are skipped;
+a new reviewed follow-up migration must install them before automation use. Never
+replay an applied migration to install skipped guards.
 
-`docs/sql/phase8-preflight.sql` and `docs/sql/phase8-postflight.sql` are read-only
-review scripts, not tests of writes, impersonation, triggers or races. If Phase 8
-is applied before Phase 7B, its optional automation guards will not be installed;
-a separately reviewed follow-up migration must add them before automation is used.
-Do not replay an applied Phase 8 migration to install them.
+## Validation and remaining merge gates
 
-## Validation performed on the reviewed feature branch
+Final local checks for this retention fix:
 
-- `npm test`: **199 passed, 0 failed**.
-- `npm run lint`: exit 0; no errors, one pre-existing `_cacheHeaders` unused-variable
-  warning at `src/utils/supabase/server.ts:15` (unchanged).
-- `npx --no-install tsc --noEmit`: exit 0.
-- `npm run build`: exit 0, production compilation and page generation passed.
+- `npm test`: **212 passed, 0 failed**.
+- `npx --no-install tsc --noEmit`: passed.
+- `npm run lint`: passed, no errors; one unchanged `_cacheHeaders` warning in
+  `src/utils/supabase/server.ts:15`.
+- `npm run build`: passed, including the new owner intake route.
 - `git diff --check`: passed.
-- Offline pglast 8.8 parsing: migration accepted (59 SQL statements, 14 PL/pgSQL
-  bodies); preflight 11 and postflight 12 SQL statements accepted. No SQL execution.
+- Offline PostgreSQL parsing accepted 80 SQL statements / 17 PL/pgSQL bodies;
+  preflight 11 and postflight 15 statements also parsed. Parsing does not execute
+  SQL or validate live table/function binding.
 
-The suite includes mocked action/provider behavior, rendered React states,
-source-contract assertions and a serialized in-memory concurrency model. It does
-**not** install or execute the new database functions. Passing it does not prove
-PostgreSQL name binding, transaction isolation, race safety, RLS, trigger execution,
-Supabase schema-cache behavior or authenticated browser behavior.
+New regressions run the real webhook route, signature code, ingestion adapter and
+owner actions against an explicit contract model. They cover quota/expired intake,
+existing/new customers, tenant-independent batches, storage/full-queue failures,
+retry/duplicate storms, owner denial, identity collisions, disabled connections,
+ordered backlog recovery, bounded retries and simulated period rollover. SQL
+source assertions check protection boundaries and ACL intent. These mocks do
+**not** prove PostgreSQL security, transaction semantics, lock order or concurrency.
 
-## Merge gate and PR disposition
+Before merge/activation, separately authorize disposable live PostgreSQL verification:
 
-Open as a **draft PR** for review; do not merge automatically. Before marking ready:
+1. Apply the full pending chain only in that separately authorized environment;
+   inspect object owners, RLS, sequence/table/function/default ACLs and schema cache.
+   Test owner A/B, members, anonymous, service role and foreign IDs directly.
+2. Exhaust quota/expire trials, ingest synthetic new and existing customers, and
+   inject projection failures. Verify raw/intake commits, rolled-back projection/
+   usage, exact duplicate and collision behavior, and unchanged handoff triggers.
+3. Race webhook vs webhook vs reconciliation at last conversation unit, at 1000
+   outstanding records, across workspace/customer boundaries and UTC rollover.
+   Check intake identity ordering, failed-predecessor fairness, source uniqueness,
+   closed-thread reopening and workspace/connection/conversation lock ordering.
+4. Verify 25-row/one-minute/five-minute/five-failure bounds, full-capacity 503,
+   success-only durable acknowledgments, whole-batch retry with committed later
+   events, and operator recovery without deleting acknowledged messages or granting
+   subscription entitlement. Review the provider retry-window/saturation runbook.
+5. Verify trial backfill/onboarding trigger order, over-capacity edits, NULL/expired
+   grace, original AI abuse-cap rollback, unauthorized upgrades and paid hard stops.
+6. Complete authenticated responsive browser tests: expired owner intake inspection,
+   paging/reconciliation/cooldown/review-needed states, non-owner/foreign denial,
+   missing schema, bilingual text and retained history. No browser verification
+   against an applied schema is claimed.
+7. Refresh main and retest after any further integration changes.
 
-1. Resolve/accept the new-customer ingress policy above and validate batch/retry
-   behavior without losing verified events.
-2. Obtain separate authorization for disposable PostgreSQL verification of the full
-   pending chain. Exercise owner A/B/member/anon/service-role access, direct RPC/
-   table/sequence privileges, NULL/expired grace, workspace creation/backfill,
-   simultaneous capacity inserts, last-unit and same-key reservations, original
-   abuse-cap rollback, monthly rollover, paid-upgrade rejection, private invoices/
-   events and Phase 7A/7B lock/trigger interactions.
-3. Complete authenticated browser checks for owner/member/foreign tenant, missing
-   schema, retained over-limit history and English/Arabic responsive states.
-4. Recheck remote main and retest after any further integration changes.
-
-No migrations, credentials, deployments, payments, WhatsApp sends or production
-changes were performed to prepare this PR.
+The code-level quota-retention/batch-starvation blocker is addressed. PR #1 remains
+**draft** pending these PostgreSQL/browser and operational acceptance gates; no
+automatic merge or activation is performed.

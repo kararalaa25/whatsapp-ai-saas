@@ -22,14 +22,15 @@ or artificial commercial discounts are supplied. Quotas are provisional technica
 defaults and do not override the older security caps.
 
 Only a trusted database administrator may configure plans or operate private
-subscription transitions. Authenticated owners have SELECT plus two narrow RPCs:
-owner-scoped dashboard reads and fixed-unit AI reservations. They cannot write
+subscription transitions. Authenticated owners have SELECT plus narrow RPCs:
+owner-scoped dashboard reads, fixed-unit AI reservations, and bounded retained-intake
+inspection/reconciliation. They cannot write
 subscriptions, plans, invoices, events, counters or audit records, or submit a
 price, amount, date, role, unit count or paid plan to a mutation endpoint.
 All new tables have RLS, including private tables. `workspace_private` must remain
 outside exposed API schemas. Public definer RPCs explicitly check owner access,
 have an empty search path, and revoke default PUBLIC/anon/service-role execution.
-The verified-ingress wrapper alone retains its original service-role execution grant.
+The verified-ingress RPC alone retains its original service-role execution grant.
 Private trigger functions and helpers have no client execution grants.
 
 Each existing workspace receives one 14-day trial **only when the migration is
@@ -90,15 +91,19 @@ external provider execution is not claimed.
 Simulated demo and Phase 7B draft automation do not consume AI provider units.
 WhatsApp metering currently counts **new test-customer conversation rows**, not
 messages, live traffic, or each active customer each month. `AFTER INSERT` metering
-avoids counting the existing-customer ON CONFLICT UPDATE path. The test metric is
-explicitly labeled separately. New rows after quota/expiration fail transactionally;
-existing customer history and ingestion into existing conversations remain intact.
+avoids counting the existing-customer UPDATE path. The test metric is
+explicitly labeled separately. New conversation projection after quota/expiration
+fails inside a protected
+subtransaction; verified raw intake is retained with bounded deferred state.
+Existing customer history and ingestion into existing conversations remain intact.
 No live WhatsApp channel is enabled by this work.
 
-The ingress wrapper preserves the existing verified test ingestor, moving its
-implementation into the private schema and locking workspace before conversation
-writes. Signature verification and trusted number mapping remain upstream. This
-must be exercised with the full pending trigger chain in a disposable DB.
+The ingestion RPC is replaced in place, locking the trusted workspace before
+connection and conversation changes. Raw acceptance precedes a protected processing
+subtransaction; entitlement denial retains the raw event and private deferred state.
+The old raw-only RPC loses its service-role grant. Signature verification remains
+upstream. See the merge review for bounded intake and owner reconciliation; the
+full pending trigger chain still needs disposable PostgreSQL verification.
 
 ## Owner dashboard
 
@@ -242,7 +247,25 @@ All final results above are from the integrated worktree with local dependencies
 ### Merge preparation review
 
 See [Phase 8 merge review](phase8-merge-review.md) for the refreshed branch check,
-nullable-capacity correction, 199-test validation, pending migration order and
-explicit merge blockers. The PR remains draft pending live PostgreSQL verification
-and review of new-customer ingestion rejection at quota/expiry. These checks were
-not performed against a database during merge preparation.
+nullable-capacity correction, durable retention fix, 212-test validation, pending
+migration order and remaining merge gates. Quota/expiry now defers projection while
+retaining verified intake. The PR remains draft pending live PostgreSQL/browser
+verification and operational acceptance. No DB checks were executed.
+
+### Durable intake and later reconciliation
+
+Verified text can be durably accepted without a new active conversation. Phase 8
+retains up to 1000 unresolved eligible events per workspace in private intake
+metadata, referencing original raw rows. Processing errors and subscription denial
+roll back projection only. A full queue/storage failure is never acknowledged as
+success; later processable batch events are still attempted. Explicitly ignored
+out-of-scope test mappings/status events keep their prior behavior.
+
+Owners inspect `/dashboard/intake?workspace=<uuid>` even after expiry. Reconciliation
+handles at most 25 eligible events once/minute, with five-minute per-event cooldowns
+and at most five processing faults. Per-customer identity ordering, original source
+uniqueness and workspace locks protect replay/projection. It never invokes AI,
+automation, billing or transport; new conversations still pass the same quota meter.
+No accepted message is evicted. At hard capacity, finite provider retries remain an
+operational risk requiring a saturation runbook. See [merge review](phase8-merge-review.md)
+for all bounds, recovery behavior and required real PostgreSQL tests.
