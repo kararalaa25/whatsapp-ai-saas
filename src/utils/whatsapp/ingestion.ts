@@ -12,7 +12,7 @@ export function createIngestor() {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
 
-  return async (message: InboundMessage): Promise<'inserted' | 'duplicate' | 'ignored'> => {
+  return async (message: InboundMessage): Promise<'inserted' | 'duplicate' | 'ignored' | 'deferred'> => {
     const { data, error } = await supabase.rpc('ingest_whatsapp_ai_test_message', {
       p_phone_number_id: message.phoneNumberId,
       p_waba_id: message.wabaId,
@@ -22,7 +22,7 @@ export function createIngestor() {
       p_meta_timestamp: message.timestamp,
       p_sender_id: message.senderId,
     })
-    if (error || !['inserted', 'duplicate', 'ignored'].includes(data)) {
+    if (error || !['inserted', 'duplicate', 'ignored', 'deferred'].includes(data)) {
       throw new Error('Webhook storage unavailable')
     }
     return data

@@ -234,13 +234,13 @@ test('agent action retrieves server-owned facts before provider/budget and prese
       return q
     }
     const sequence = []; const requests = []
-    h.client.rpc = async name => { sequence.push(name); return { data: null, error: null } }
+    h.client.rpc = async name => { sequence.push(name); return { data: name === 'reserve_subscription_ai' ? true : null, error: null } }
     const agent = load('../src/app/dashboard/agent/actions.ts', {
       'next/cache': { revalidatePath() {} }, '@/utils/supabase/server': { createClient: async () => h.client }, '@/utils/ai/access': h.owner,
       '@/utils/ai/settings': settings, '@/utils/knowledge/retrieval': { retrieveKnowledge: async (...args) => { sequence.push('retrieve'); return h.retrieve.retrieveKnowledge(...args) } },
       '@/utils/ai/reply': { generateReply: async (s, history, message, mode, _provider, knowledge) => replies.generateReply(s, history, message, mode, async request => { sequence.push('provider'); requests.push(request); return 'Synthetic provider draft' }, knowledge) },
     }, { OPENAI_API_KEY: 'synthetic-not-a-real-key' })
-    const result = await agent.previewReply(workspace, other, 'amber perfume price', 'openai', config, [])
+    const result = await agent.previewReply(workspace, other, 'amber perfume price', 'openai', config, [], 0)
     assert.equal(result.ok, !storageError)
     if (storageError) {
       assert.deepEqual(sequence, ['retrieve'])
@@ -248,7 +248,7 @@ test('agent action retrieves server-owned facts before provider/budget and prese
       const demo = await agent.previewReply(workspace, null, 'amber perfume', 'demo', config, [])
       assert.equal(demo.ok, true); assert.match(demo.data.messages[1].content, /simulated/)
     } else {
-      assert.deepEqual(sequence, ['retrieve', 'reserve_ai_preview', 'provider', 'save_ai_turn'])
+      assert.deepEqual(sequence, ['retrieve', 'reserve_subscription_ai', 'provider', 'save_ai_turn'])
       assert.match(requests[0].messages.at(-2).content, /25000/)
       assert.match(requests[0].messages.at(-2).content, /Synthetic amber perfume/)
     }

@@ -120,7 +120,7 @@ function harness(actor = 'a', mockProvider = false) {
           .map(c => { const messages = verified(c).sort((a, b) => a.position - b.position); const message = messages.at(-1); const source = rows.whatsapp_inbound_messages.find(i => i.id === message?.inbound_message_id); return { id: c.id, connection_id: c.connection_id, customer_wa_id: c.customer_wa_id, updated_at: c.updated_at, status: state(c).status, human_takeover: state(c).human_takeover, assigned_user_id: state(c).assigned_user_id, unread_count: messages.filter(m => m.position > state(c).last_read_position).length, recent_message: source?.body.slice(0, 160) ?? null, latest_received_at: source?.received_at ?? null } })
         return ok(data)
       }
-      if (name === 'reserve_ai_preview') return ok(null)
+      if (name === 'reserve_subscription_ai') return ok(true)
       const conv = rows.ai_conversations.find(c => c.workspace_id === args.p_workspace_id && c.id === args.p_conversation_id && c.channel === 'whatsapp_test')
       if (!conv) return deny()
       const control = state(conv)
@@ -366,7 +366,7 @@ test('fixed-window owner limits apply across requests; takeover during generatio
 
 test('missing OpenAI configuration rejects before provider quota, while manual and demo remain available', async () => {
   const h = harness(); const conv = await h.inbound(); h.calls.length = 0
-  assert.equal((await h.actions.generateInboxDraft(A, conv.id, 'openai')).ok, false)
+  assert.equal((await h.actions.generateInboxDraft(A, conv.id, 'openai', conv.revision)).ok, false)
   assert.equal(h.calls.some(call => call.name.startsWith('reserve_')), false)
   assert.equal((await h.actions.generateInboxDraft(A, conv.id, 'demo')).ok, true)
 })
@@ -519,7 +519,7 @@ test('mocked OpenAI inbox path reserves both budgets and receives verified custo
   const h = harness('a', true); const conv = await h.inbound({ body: 'Synthetic amber perfume' })
   await h.inbound({ body: 'وشكد سعره؟' })
   h.rows.ai_messages.push({ id: 'old-assistant', workspace_id: A, conversation_id: conv.id, position: 3, role: 'assistant', provider: 'demo', content: 'Unsent fabricated price 0', inbound_message_id: null })
-  const result = await h.actions.generateInboxDraft(A, conv.id, 'openai')
+  const result = await h.actions.generateInboxDraft(A, conv.id, 'openai', conv.revision)
   assert.equal(result.ok, true); assert.equal(h.providerCalls.length, 1)
   const args = h.providerCalls[0]
   assert.equal(args[3], 'openai'); assert.equal(args[2], 'وشكد سعره؟')
@@ -527,8 +527,8 @@ test('mocked OpenAI inbox path reserves both budgets and receives verified custo
   assert.equal(JSON.stringify(args[1]).includes('fabricated'), false)
   assert.equal(args[5][0].data.price, 25000)
   const order = h.calls.map(call => call.name)
-  assert.ok(order.indexOf('reserve_whatsapp_inbox_generation') < order.indexOf('reserve_ai_preview'))
-  assert.ok(order.indexOf('reserve_ai_preview') < order.indexOf('create_whatsapp_inbox_draft'))
+  assert.ok(order.indexOf('reserve_whatsapp_inbox_generation') < order.indexOf('reserve_subscription_ai'))
+  assert.ok(order.indexOf('reserve_subscription_ai') < order.indexOf('create_whatsapp_inbox_draft'))
 })
 
 test('unknown customer questions produce an explicitly simulated clarification without made-up business facts', async () => {
@@ -571,4 +571,16 @@ test('legacy Studio demo can still use enabled editor settings rather than requi
   assert.ok(h.calls.some(call => call.name === 'save_ai_turn'))
   assert.equal(result.ok, true)
   assert.equal(result.data.messages.at(-1).provider, 'demo')
+})
+
+test('provider inbox retry for a stale or missing observed revision never reserves or calls provider', async () => {
+ for (const missing of [false, true]) {
+  const h = harness('a', true); const conv = await h.inbound()
+  const oldRevision = conv.revision
+  await h.inbound({ body: 'New inbound after the original request' })
+  const result = await h.actions.generateInboxDraft(A, conv.id, 'openai', missing ? undefined : oldRevision)
+  assert.equal(result.ok, false)
+  assert.equal(h.providerCalls.length, 0)
+  assert.equal(h.calls.some(c => c.name === 'reserve_subscription_ai'), false)
+ }
 })

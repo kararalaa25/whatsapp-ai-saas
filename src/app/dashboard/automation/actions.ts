@@ -29,7 +29,7 @@ export async function saveAutomation(workspaceId: string, revision: number, raw:
     const { error } = await client.rpc('save_whatsapp_automation_settings', { p_workspace_id: workspace.id, p_revision: revision, p_settings: settings })
     if (error) throw Error('Save rejected')
     return { ok: true as const }
-  } catch { return { ok: false as const, error: 'Settings were not saved. Check owner access, values, migration status, or refresh after another edit.' } }
+  } catch { return { ok: false as const, error: 'Settings were not saved. Check subscription entitlements, owner access, values, migration status, or refresh after another edit.' } }
 }
 export async function saveAutomationForm(workspaceId: string, revision: number, form: FormData) {
   const minute = (name: string) => {
@@ -53,5 +53,5 @@ export async function runAutomation(workspaceId: string, conversationId: string)
     return { ...loaded, notice: result.outcome === 'pending_human'
       ? 'Marked pending human locally. No transfer, notification or message was sent.'
       : 'Automation draft saved locally using the grounded simulator — NOT SENT. No provider call occurred.' }
-  } catch { return { ok: false as const, error: 'Automation did not create a draft. Check draft-only mode, working hours, owner access, human control, agent settings, an existing run, or changed conversation. Failed reservations can be retried after 5 minutes (3 attempts maximum).' } }
+  } catch { return { ok: false as const, error: 'Automation did not create a draft. Check subscription entitlements, draft-only mode, working hours, owner access, human control, agent settings, an existing run, or changed conversation. Failed reservations can be retried after 5 minutes (3 attempts maximum).' } }
 }

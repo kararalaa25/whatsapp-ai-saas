@@ -132,7 +132,7 @@ export async function inspectKnowledge(workspaceId: string, conversationId: stri
   } catch { return { ok: false, error: 'Knowledge preview unavailable. Check owner access, the selected conversation, and the customer question.' } }
 }
 
-export async function previewReply(workspaceId: string, conversationId: string | null, input: string, mode: 'demo' | 'openai', draft: unknown, localHistory: unknown): Promise<Result<{ messages: ChatMessage[]; snapshot?: Snapshot; knowledge: KnowledgePreview }>> {
+export async function previewReply(workspaceId: string, conversationId: string | null, input: string, mode: 'demo' | 'openai', draft: unknown, localHistory: unknown, expectedRevision?: number): Promise<Result<{ messages: ChatMessage[]; snapshot?: Snapshot; knowledge: KnowledgePreview }>> {
   try {
     z.enum(['demo', 'openai']).parse(mode)
     const { supabase, workspace } = await ownerClient(workspaceId)
@@ -141,6 +141,7 @@ export async function previewReply(workspaceId: string, conversationId: string |
     const turn = await resolveTurn(workspace.id, conversationId, input, localHistory)
     if (!turn.ok) return turn
     const { history, message, snapshot } = turn.data
+    if (mode === 'openai' && (!Number.isInteger(expectedRevision) || expectedRevision !== snapshot?.conversation.revision)) return { ok: false, error: 'Conversation changed or request revision is missing. Refresh before generating a new provider reply.' }
 
     if (mode === 'openai') {
       if (!process.env.OPENAI_API_KEY) return { ok: false, error: 'OpenAI is not configured on the server. Demo mode remains available.' }
@@ -155,8 +156,8 @@ export async function previewReply(workspaceId: string, conversationId: string |
     const knowledge: KnowledgePreview = { ...retrieved, historyUsed: retrieved.historyUsed ?? false, historyMessages: context.length }
     if (mode === 'openai' && !knowledge.available) return { ok: false, error: 'Business knowledge could not be loaded. Check owner access and knowledge storage, or use simulated demo mode.' }
     if (mode === 'openai') {
-      const { error } = await supabase.rpc('reserve_ai_preview', { p_workspace_id: workspace.id })
-      if (error) return { ok: false, error: error.code === '54000' ? 'Daily OpenAI preview limit reached. Demo mode is still available.' : 'OpenAI preview could not be authorized. Check saved settings and workspace access.' }
+      const { data: fresh, error } = await supabase.rpc('reserve_subscription_ai', { p_workspace_id: workspace.id, p_conversation_id: conversationId, p_revision: snapshot!.conversation.revision, p_surface: 'studio' })
+      if (error || fresh !== true) return { ok: false, error: error?.code === '54000' ? 'Workspace quota or daily OpenAI preview limit reached. Demo mode is still available.' : 'OpenAI preview unavailable or already reserved for this conversation revision. Refresh before retrying.' }
     }
     const reply = await generateReply(settings, history, message, mode, undefined, knowledge.entries)
 

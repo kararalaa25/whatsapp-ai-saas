@@ -79,13 +79,18 @@ export function parseMessages(raw: string): InboundMessage[] {
   return result
 }
 
-export type Ingest = (message: InboundMessage) => Promise<'inserted' | 'duplicate' | 'ignored'>
+export type Ingest = (message: InboundMessage) => Promise<'inserted' | 'duplicate' | 'ignored' | 'deferred'>
 
 export async function deliverMessages(messages: InboundMessage[], allowedIds: Set<string>, ingest: Ingest) {
   // Resolve workspace ownership only inside the database RPC, never from payload.
+  let failed = false
   for (const item of messages) {
-    if (allowedIds.has(item.phoneNumberId)) await ingest(item)
+    if (!allowedIds.has(item.phoneNumberId)) continue
+    try { await ingest(item) } catch { failed = true }
   }
+  // Every later event gets an independent durable-acceptance attempt. A failed
+  // event still makes the batch non-2xx; committed successes deduplicate on retry.
+  if (failed) throw new Error('Some webhook events were not durably accepted')
 }
 
 export class OversizedWebhookError extends Error {}

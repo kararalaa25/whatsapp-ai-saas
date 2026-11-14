@@ -92,7 +92,7 @@ test('owner authorization refuses foreign workspaces and ordinary members', asyn
   assert.equal((await access.requireAgentOwner(client, workspace)).id, workspace)
 })
 
-function actionHarness({ authorized = true, revisionError = false, quotaError = false, openai = false } = {}) {
+function actionHarness({ authorized = true, revisionError = false, quotaError = false, openai = false, duplicateReservation = false } = {}) {
   const calls = []
   const providerCalls = []
   const client = {
@@ -102,7 +102,7 @@ function actionHarness({ authorized = true, revisionError = false, quotaError = 
         maybeSingle() { return Promise.resolve({ data: table === 'ai_agent_settings' ? config : { id: conversationId, channel: 'playground', status: 'open', revision: 3, title: 'Test', updated_at: '2026-01-01' }, error: null }) } }
       return q
     },
-    async rpc(name, args) { calls.push({ name, args }); return { data: null, error: quotaError ? { code: '54000' } : revisionError ? { code: '40001' } : null } },
+    async rpc(name, args) { calls.push({ name, args }); return { data: name === 'reserve_subscription_ai' ? !duplicateReservation : null, error: quotaError ? { code: '54000' } : revisionError ? { code: '40001' } : null } },
   }
   const actions = load('../src/app/dashboard/agent/actions.ts', {
     'next/cache': { revalidatePath() {} },
@@ -145,9 +145,9 @@ test('temporary demo works without schema writes; saved turns enforce conversati
 
 test('OpenAI uses saved settings and reserves budget before the mocked provider', async () => {
   const harness = actionHarness({ openai: true })
-  const result = await harness.actions.previewReply(workspace, conversationId, 'hello', 'openai', { ...config, instructions: 'Unsaved override' }, [])
+  const result = await harness.actions.previewReply(workspace, conversationId, 'hello', 'openai', { ...config, instructions: 'Unsaved override' }, [], 3)
   assert.equal(result.ok, true)
-  assert.equal(harness.calls[0].name, 'reserve_ai_preview')
+  assert.equal(harness.calls[0].name, 'reserve_subscription_ai')
   assert.equal(harness.calls[0].args.p_workspace_id, workspace)
   assert.equal(harness.providerCalls.length, 1)
   assert.equal(harness.providerCalls[0][0].instructions, config.instructions)
@@ -157,9 +157,9 @@ test('OpenAI uses saved settings and reserves budget before the mocked provider'
 
 test('budget exhaustion prevents provider calls and transcript writes', async () => {
   const harness = actionHarness({ openai: true, quotaError: true })
-  const result = await harness.actions.previewReply(workspace, conversationId, 'hello', 'openai', config, [])
+  const result = await harness.actions.previewReply(workspace, conversationId, 'hello', 'openai', config, [], 3)
   assert.equal(result.ok, false)
-  assert.match(result.error, /Daily OpenAI preview limit/)
+  assert.match(result.error, /Workspace quota or daily OpenAI preview limit/)
   assert.equal(harness.providerCalls.length, 0)
   assert.equal(harness.calls.length, 1)
 })
@@ -363,4 +363,25 @@ test('page forwards the selected URL to the loader and renders unavailable selec
   const unavailable = await render({ workspace, conversation: [conversationId, other] })
   assert.match(JSON.stringify(unavailable), /Agent studio unavailable/)
   assert.equal(calls[1][1], '')
+})
+
+test('duplicate subscription reservation blocks provider retry and message writes', async () => {
+  const h = actionHarness({openai: true, duplicateReservation: true})
+  const result = await h.actions.previewReply(workspace, conversationId, 'hello', 'openai', config, [], 3)
+  assert.equal(result.ok, false)
+  assert.equal(h.providerCalls.length, 0)
+  assert.equal(h.calls.length, 1)
+  assert.equal(h.calls[0].args.p_revision, 3)
+  assert.equal(h.calls[0].args.p_conversation_id, conversationId)
+  assert.equal(h.calls[0].args.p_surface, 'studio')
+})
+
+test('missing and stale displayed revisions reject provider replays before reservation', async () => {
+ for (const expected of [undefined, 2]) {
+  const h = actionHarness({openai: true})
+  const result = await h.actions.previewReply(workspace, conversationId, 'hello', 'openai', config, [], expected)
+  assert.equal(result.ok, false)
+  assert.equal(h.providerCalls.length, 0)
+  assert.equal(h.calls.length, 0)
+ }
 })
