@@ -1,0 +1,9 @@
+'use client'
+import { useState,useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { cloudControl } from './actions'
+export default function ChannelControls({workspaceId,channel}:{workspaceId:string;channel:{id:string;revision:number;status:string;mode:string}}){
+ const [consent,setConsent]=useState(false);const [message,setMessage]=useState('');const [pending,start]=useTransition();const router=useRouter()
+ function change(action:'disable'|'review'|'automatic'){start(async()=>{const result=await cloudControl(workspaceId,channel.id,channel.revision,action);setMessage(result.ok?'تم تحديث إعداد القناة. الطلب الذي بدأ إرساله لا يمكن سحبه.':'تعذر التحديث. تحقق من الخطة والصلاحيات ثم أعد تحميل البيانات.');setConsent(false);router.refresh()})}
+ return <div className="space-y-3 rounded-lg border p-4"><p className="text-sm leading-7">المراجعة اليدوية هي الوضع الافتراضي. الرد التلقائي يحتاج تفعيل المزود وصلاحية الأتمتة ونافذة خدمة مفتوحة.</p><div className="flex flex-wrap gap-3"><button disabled={pending} className="min-h-11 rounded border px-3" onClick={()=>change('review')}>مراجعة يدوية</button><button disabled={pending||channel.status==='disabled'} className="min-h-11 rounded border px-3" onClick={()=>change('disable')}>تعطيل محلي</button></div><label className="flex items-start gap-3 text-sm leading-7"><input className="mt-2" type="checkbox" checked={consent} disabled={pending||channel.status!=='active'} onChange={e=>setConsent(e.target.checked)} />أوافق على إعداد ردود تلقائية وفق الخطة وسياسات نشاطي، بعد إذن تشغيل المزود.</label><button disabled={pending||!consent||channel.status!=='active'} onClick={()=>change('automatic')} className="min-h-11 rounded border px-3 disabled:opacity-50">تفعيل وضع الرد التلقائي</button>{message&&<p role="status" className="text-sm">{message}</p>}</div>
+}

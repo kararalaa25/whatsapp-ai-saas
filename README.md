@@ -6,8 +6,10 @@ usage. Arabic-first account entry and dashboard, with English dashboard/recovery
 and bilingual subscription/intake views.
 
 **Development review build:** WhatsApp sending, automatic delivery and real payments
-remain disabled. Self-service Meta onboarding, team invitations and live delivery
-status/retry processing are not complete. Do not describe this build as a live
+remain disabled. New Meta onboarding, voice processing, team invitations and delivery/status
+workflows are implemented behind explicit installation/provider approval gates.
+See [Cloud runtime readiness](docs/cloud-runtime-readiness.md) for new pending SQL,
+sandbox evidence and remaining acceptance gates. Do not describe this build as a live
 commercial messaging service.
 
 ## Run locally
@@ -73,6 +75,7 @@ verified separately with synthetic accounts. Mocked sessions cannot close that g
 - `supabase`: historical schema sources and the compatible manual installer.
 - `verification`: explicitly scoped database/browser evidence and tools.
 
-[Current readiness report](docs/mvp-readiness.md) is the release checkpoint.
+[Cloud runtime readiness](docs/cloud-runtime-readiness.md) is the current checkpoint;
+[MVP readiness](docs/mvp-readiness.md) records the earlier completed UI pass.
 No automatic migration, deployment, merge, payment activation or outbound send is
 authorized or performed by these instructions.

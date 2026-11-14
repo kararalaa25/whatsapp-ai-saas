@@ -140,6 +140,7 @@ test('foreign dashboard selection cannot emit tenant-specific feature links',asy
 })
 test('auth-token endpoints suppress development request logging without suppressing unrelated routes',()=>{
  const config=loader()('../next.config.ts').default
+ assert.equal(config.logging.serverFunctions,false)
  const ignored=config.logging.incomingRequests.ignore
  for(const path of ['/auth/recovery?code=private','/auth/callback?code=private','/auth/confirm?token_hash=private','/api/webhooks/whatsapp?hub.verify_token=private'])assert.ok(ignored.some(re=>re.test(path)))
  assert.equal(ignored.some(re=>re.test('/dashboard')),false)

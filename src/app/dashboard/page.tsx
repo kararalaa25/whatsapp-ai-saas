@@ -13,6 +13,8 @@ async function signOut() {
   if (result.error) redirect('/dashboard?error=signout')
 }
 const tools = [
+  { path: 'cloud', ar: 'WhatsApp Business', en: 'WhatsApp Business', detailAr: 'ربط Cloud ومحادثاته وحالات الردود، بعد إذن تفعيل المزود.', detailEn: 'Cloud onboarding, conversations and delivery state after provider activation approval.' },
+  { path: 'team', ar: 'الفريق والدعوات', en: 'Team & invitations', detailAr: 'راجع الأعضاء وأرسل رابط دعوة آمن ضمن حدود خطتك.', detailEn: 'Review members and issue a verified-email invitation link within plan limits.' },
   { path: 'knowledge', ar: 'معلومات الأعمال', en: 'Business knowledge', detailAr: 'أضف منتجاتك وأسئلتك الشائعة وساعات العمل والسياسات.', detailEn: 'Manage products, FAQs, hours and business policies.' },
   { path: 'agent', ar: 'المساعد الذكي', en: 'AI assistant', detailAr: 'اضبط التعليمات واختبر ردوداً تستند إلى معلومات نشاطك.', detailEn: 'Configure instructions and test replies grounded in your knowledge.' },
   { path: 'inbox', ar: 'المحادثات', en: 'Conversations', detailAr: 'راجع الرسائل، استلم المحادثة بشرياً وجهّز مسودات الرد.', detailEn: 'Read customer texts, take human control and review reply drafts.' },

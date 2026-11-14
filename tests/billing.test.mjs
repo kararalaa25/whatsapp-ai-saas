@@ -100,6 +100,9 @@ const plan={id:'trial',name_en:'Free Trial',name_ar:'تجربة مجانية',tr
 function page(panel){return load('../src/app/dashboard/billing/page.tsx',{
  'next/link':{__esModule:true,default:({children,...props})=>React.createElement('a',props,children)},
  'next/server':{connection:async()=>{}},'@/utils/supabase/server':{createClient:async()=>({})},
+ '@/utils/cloud/security':{CLOUD_INSTALLATION_APPROVED:false},
+ '@/app/dashboard/billing/actions':{loadPlanReviews:async()=>[]},
+ '@/app/dashboard/billing/review':{__esModule:true,default:load('../src/app/dashboard/billing/review.tsx',{'./actions':{requestPlanReview:async()=>({ok:false})},'next/navigation':{useRouter:()=>({refresh(){}})}}).default},
  '@/utils/billing/access':{loadBillingPanel:async()=>{if(panel instanceof Error)throw panel;return panel}},'@/utils/billing/model':model,
 },s=>s.replace('async function BillingContent','export async function BillingContent'))}
 test('owner UI renders Arabic RTL, warnings, disabled comparisons and no payment success',async()=>{

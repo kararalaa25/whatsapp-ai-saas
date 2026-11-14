@@ -1,0 +1,60 @@
+{
+  "branch": "integration/phase8-existing-dev-compatibility",
+  "baseline": "4fa8cffa080205ce1a3196aa5ce95052dcbfa750",
+  "environment": {
+    "node": "24.22.1",
+    "npm": "11.9.0",
+    "next": "16.4.6",
+    "chromium": "156.0.8078.79",
+    "provider_configuration": "absent; public browser server launched with empty inherited environment"
+  },
+  "checks": {
+    "tests": {
+      "status": "PASS",
+      "passed": 312,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Application functions with explicit external/database mocks; fixtures and SQL source assertions"
+    },
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "production_build": "PASS",
+    "sql_grammar": {
+      "status": "PASS",
+      "parser": "pglast 8.8",
+      "statements": 62,
+      "plpgsql_functions": 22,
+      "execution": false
+    },
+    "production_dependency_audit": "PASS: 0 known advisories",
+    "public_browser": {
+      "checks": [
+        "PASS 390px: invitation RTL, invalid token rejection, fragment removed, no overflow",
+        "PASS 390px: unauthenticated /dashboard/cloud redirects",
+        "PASS 390px: unauthenticated /dashboard/team redirects",
+        "PASS 1440px: invitation RTL, invalid token rejection, fragment removed, no overflow",
+        "PASS 1440px: unauthenticated /dashboard/cloud redirects",
+        "PASS 1440px: unauthenticated /dashboard/team redirects",
+        "PASS unconfigured POST /api/cloud/worker: 403, fails closed",
+        "PASS unconfigured POST /api/cloud/onboarding: 403, fails closed",
+        "PASS unconfigured POST /api/webhooks/meta: 503, fails closed",
+        "PASS unconfigured GET /api/webhooks/meta: 503, fails closed"
+      ],
+      "scope": "Public local browser and unconfigured HTTP only. Real Auth/PostgREST/Meta/STT NOT TESTED."
+    },
+    "real_postgres_rls_concurrency": "NOT TESTED",
+    "real_auth_postgrest_authenticated_browser": "NOT TESTED",
+    "real_meta_and_stt": "BLOCKED: explicit configuration/approval required"
+  },
+  "migration": {
+    "path": "supabase/migrations/20261114221600_cloud_business_runtime.sql",
+    "sha256": "8a7ee890c68820bc10c5bf505165afe9249b86d4bb310bb093030be753946e90",
+    "applied": false
+  },
+  "release_gates": {
+    "installation": false,
+    "provider": false,
+    "payments": false
+  },
+  "decision": "NOT ready for staging sign-off; pending real database and provider acceptance gates"
+}

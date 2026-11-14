@@ -1,5 +1,7 @@
 # Wasla AI MVP checkpoint — 15 November 2026
 
+Later implementation: [Cloud runtime readiness](cloud-runtime-readiness.md). The evidence below is historical and does not verify the new provider path.
+
 **Decision: NOT ready for staging sign-off, a business pilot or a complete
 commercial MVP release; suitable only for an isolated development/staging review.** Full authenticated Supabase/browser
 verification and several core live-service workflows remain incomplete. No merge,

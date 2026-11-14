@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   // Meta authenticates this machine-to-machine endpoint with an app-secret HMAC,
   // not browser cookies. Do not refresh user sessions on webhook requests.
-  if (request.nextUrl.pathname === '/api/webhooks/whatsapp') {
+  if (['/api/webhooks/whatsapp', '/api/webhooks/meta', '/api/cloud/worker'].includes(request.nextUrl.pathname)) {
     return NextResponse.next()
   }
   const cookieResponse = NextResponse.next()
