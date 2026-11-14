@@ -1,0 +1,285 @@
+{
+  "scope": "Read-only Phase 9B Docker storage diagnostics; no Supabase pull or schema write",
+  "docker": {
+    "engine": "29.9.2",
+    "driver": "vfs",
+    "data_root": "/home/dockerd/.local/share/docker",
+    "rootless": true,
+    "containers_before": 0,
+    "volumes_before": 0,
+    "build_cache_bytes": 0,
+    "explicit_driver_quota": "NOT EXPOSED: DriverStatus is null; project/user quota cannot be ruled out"
+  },
+  "backing_probe": {
+    "filesystem": "overlay",
+    "total_bytes": 67586535424,
+    "available_bytes_during_first_probe": 49739751424,
+    "total_inodes": 4194304,
+    "available_inodes_during_first_probe": 3856405,
+    "vfs_allocated_bytes_during_probe": 11373453312,
+    "image_metadata_allocated_bytes": 1527808,
+    "temporary_diagnostic_helper_included": true
+  },
+  "workspace": {
+    "initial_free_human": "about 30 GiB",
+    "final_free_bytes": 50719891456,
+    "total_bytes": 67586535424,
+    "same_capacity_total_as_daemon_probe": true,
+    "warning": "Time-varying snapshots and different namespace paths are not proof of an independent larger backing filesystem"
+  },
+  "registered_image": {
+    "image_id": "sha256:140936e8665d5274aa58df31b722693b4b451c541bb0f1a263a345d424bfacb4",
+    "logical_bytes": 470898038,
+    "layer_count": 14,
+    "cumulative_vfs_layer_bytes": 3682018810
+  },
+  "dedicated_daemon": {
+    "status": "BLOCKED",
+    "effective_capabilities": "0",
+    "bounding_capabilities": "0",
+    "no_new_privileges": true,
+    "unshare_user_probe": "cannot open /proc/self/uid_map: Read-only file system",
+    "fuse_overlayfs_available": false,
+    "default_daemon_configuration_changed": false
+  },
+  "images": [
+    {
+      "image": "supabase/postgres:17.6.1.075",
+      "platform": "linux/amd64",
+      "manifest_digest": "sha256:e4c5a3f62fed239ca9cd633b5a8e03385f636a9705cc759af0abf56de280b747",
+      "compressed_layer_bytes": [
+        29726011,
+        716,
+        98230111,
+        1388,
+        1413,
+        296,
+        38100697,
+        1181116,
+        32,
+        871879823,
+        3756287,
+        253,
+        16473775,
+        569,
+        543,
+        561,
+        542,
+        443264,
+        1279,
+        289,
+        9916674,
+        424548,
+        121550358,
+        3262,
+        982815,
+        793,
+        1002636,
+        32,
+        77888,
+        8537,
+        1888,
+        1015,
+        339,
+        277,
+        1503,
+        3854,
+        364,
+        387,
+        334,
+        397,
+        639,
+        9396,
+        8570,
+        8570,
+        1486,
+        12859,
+        524,
+        272,
+        32,
+        5368,
+        126,
+        9086050,
+        866596,
+        308
+      ],
+      "uncompressed_tar_isize_bytes": [
+        80636416,
+        5120,
+        222449152,
+        14848,
+        14848,
+        2560,
+        117119488,
+        40792064,
+        1024,
+        2733230592,
+        7589376,
+        6656,
+        41811456,
+        11776,
+        10752,
+        11776,
+        10752,
+        2426368,
+        32768,
+        4608,
+        15705600,
+        1697280,
+        357534208,
+        38400,
+        2358784,
+        4096,
+        2388992,
+        1024,
+        329216,
+        30720,
+        7168,
+        4608,
+        6144,
+        3072,
+        7680,
+        28160,
+        4096,
+        3072,
+        3072,
+        3072,
+        3584,
+        37376,
+        31232,
+        31232,
+        7680,
+        108032,
+        3584,
+        3072,
+        1024,
+        17408,
+        2048,
+        30243328,
+        3066368,
+        4608
+      ],
+      "compressed_total_bytes": 1203777662,
+      "tar_total_bytes": 3659901440,
+      "vfs_no_deletion_estimate_bytes": 160921327104,
+      "verified_layer_media_types": [
+        "application/vnd.oci.image.layer.v1.tar+gzip"
+      ]
+    },
+    {
+      "image": "supabase/gotrue:v2.186.0",
+      "platform": "linux/amd64",
+      "manifest_digest": "sha256:9b387cd7896c3f2ea4e72e0311b1ce727ef61d3b2a3a9789cc4935925dfe9d67",
+      "compressed_layer_bytes": [
+        3861821,
+        939,
+        296064,
+        20872996,
+        12059,
+        169
+      ],
+      "uncompressed_tar_isize_bytes": [
+        8724480,
+        10240,
+        787968,
+        42120704,
+        107520,
+        3072
+      ],
+      "compressed_total_bytes": 25044048,
+      "tar_total_bytes": 51753984,
+      "vfs_no_deletion_estimate_bytes": 182130176,
+      "verified_layer_media_types": [
+        "application/vnd.oci.image.layer.v1.tar+gzip"
+      ]
+    },
+    {
+      "image": "postgrest/postgrest:v14.3",
+      "platform": "linux/amd64",
+      "manifest_digest": "sha256:7924f769d8b3b173b93711c90d2fc4164667cffc563551d6a13bc5c93aca2487",
+      "compressed_layer_bytes": [
+        6286706
+      ],
+      "uncompressed_tar_isize_bytes": [
+        21022720
+      ],
+      "compressed_total_bytes": 6286706,
+      "tar_total_bytes": 21022720,
+      "vfs_no_deletion_estimate_bytes": 21022720,
+      "verified_layer_media_types": [
+        "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      ]
+    },
+    {
+      "image": "library/kong:2.8.1",
+      "platform": "linux/amd64",
+      "manifest_digest": "sha256:e21b0b793879ab96720ed4188f9441260273f4bf775bcbff8d435e019ffb759a",
+      "compressed_layer_bytes": [
+        2806054,
+        132,
+        46528590,
+        881
+      ],
+      "uncompressed_tar_isize_bytes": [
+        5826560,
+        2048,
+        137826816,
+        3584
+      ],
+      "compressed_total_bytes": 49335657,
+      "tar_total_bytes": 143659008,
+      "vfs_no_deletion_estimate_bytes": 298969600,
+      "verified_layer_media_types": [
+        "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      ]
+    },
+    {
+      "image": "axllent/mailpit:v1.22.3",
+      "platform": "linux/amd64",
+      "manifest_digest": "sha256:168f762c218e167ba88ae7e48194126eb5ba5e99ef652063e3f14f9c4f0ee70f",
+      "compressed_layer_bytes": [
+        3642247,
+        8450325,
+        171563
+      ],
+      "uncompressed_tar_isize_bytes": [
+        8120832,
+        21059584,
+        919552
+      ],
+      "compressed_total_bytes": 12264135,
+      "tar_total_bytes": 30099968,
+      "vfs_no_deletion_estimate_bytes": 67401216,
+      "verified_layer_media_types": [
+        "application/vnd.oci.image.layer.v1.tar+gzip"
+      ]
+    }
+  ],
+  "model_caveats": [
+    "gzip ISIZE is modulo 2^32; larger individual tar streams could wrap",
+    "tar bytes are not exact allocated filesystem blocks",
+    "weighted model assumes no deletions/replacements/hardlink savings and no sharing between images",
+    "only the five attempted core images were measured; optional full-stack images and runtime volumes are additional"
+  ],
+  "integration": {
+    "status": "BLOCKED",
+    "resumed": false,
+    "schema_writes": false,
+    "auth_users_created": false,
+    "browser_sessions_created": false
+  },
+  "cleanup": {
+    "only_new_readonly_helpers_created_and_removed": 2,
+    "preexisting_image_preserved": true,
+    "preexisting_containers_removed": 0,
+    "preexisting_volumes_removed": 0,
+    "preexisting_networks_removed": 0,
+    "manual_graph_removal": false,
+    "global_prune": false
+  },
+  "core_totals": {
+    "compressed_bytes": 1296708208,
+    "tar_bytes": 3906437120,
+    "vfs_no_deletion_estimate_bytes": 161490850816
+  }
+}

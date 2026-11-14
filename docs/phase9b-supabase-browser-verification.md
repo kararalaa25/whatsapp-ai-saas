@@ -3,9 +3,148 @@
 ## Decision
 
 **Keep PR #1 draft and unmerged.** The real Supabase/Auth/PostgREST/browser test
-category is **BLOCKED by local Docker storage capacity**, not verified successfully.
+category remains **BLOCKED on the accessible Docker backend**, not verified successfully.
+The follow-up below distinguishes current free space from unsafe `vfs` extraction
+headroom and the inability to provision a separate daemon.
 No mocked session, Phase 9A SQL shim or unauthenticated screenshot is counted as
 closing this gate. The available regression/type/lint/build checks pass.
+
+## Follow-up: read-only storage diagnosis and recovery decision
+
+**Outcome: stop after diagnostics; no further image pull or Supabase start.**
+The baseline commit was `1d2f6c3defaf921cfd5c3c1ad0c5c3687e9576a3` on the
+same verification branch. This follow-up did not change the default daemon,
+application, migrations, existing images/containers/networks/volumes or any database.
+There is no application fix requiring a regression-suite rerun here; prior unit/
+type/build results below remain historical, not a newly passed integration gate.
+
+### Measured capacity, inodes, quota visibility and inventory
+
+| Diagnostic | Actual observation | Interpretation |
+| --- | --- | --- |
+| Docker root / driver | `/home/dockerd/.local/share/docker`, rootless Engine 29.9.2, `vfs` | This backend duplicates layer trees instead of using copy-on-write |
+| Daemon backing filesystem | `overlay`, 67,586,535,424 bytes total (62.94 GiB) | Measured by read-only bind from the daemon namespace, not inferred from workspace free space |
+| Available during first daemon probe | 49,739,751,424 bytes (46.32 GiB) | The filesystem is not currently full; the prior ENOSPC was an extraction-time failure |
+| Inodes during daemon probe | 4,194,304 total; about 3,856,405 available | No current inode exhaustion observed; no failure-time inode measurement exists |
+| Explicit daemon data-root quota | **NOT EXPOSED**: Docker `DriverStatus` is null; no size quota reported | A stricter user/project/outer quota cannot be ruled out through the permitted interfaces; do not interpret this as unlimited storage |
+| Workspace snapshots | Initially about 30 GiB free; later 50,719,891,456 bytes (47.24 GiB) after helper cleanup | Free-space snapshots varied; a different directory is not evidence of a separate larger backing disk |
+| API inventory at start/end | One `postgres:17` image, logical size 470,898,038 bytes; zero containers, zero volumes, zero build cache | Pre-existing image ID `sha256:140936e8665d5274aa58df31b722693b4b451c541bb0f1a263a345d424bfacb4` retained |
+| Physical `vfs` directories during probe | 11,373,453,312 bytes (10.59 GiB), 20 directories | Includes a temporary diagnostic helper; API virtual image size is not physical VFS allocation |
+| Registered image metadata | 14 registered layers; delta sum 470,898,038 bytes; cumulative logical layer-tree sum 3,682,018,810 bytes | Even the existing small image has substantial layer-copy amplification |
+| Image metadata / temp allocation | About 1.53 MB / 8 KB during probe | Not the dominant observed footprint |
+| New rootless daemon capability | `unshare --user --map-root-user true` fails: `/proc/self/uid_map` read-only | A supported separate rootless daemon cannot be established here |
+| Privileged alternative | Effective/bounding capability sets are zero; `NoNewPrivs=1`; `fuse-overlayfs` unavailable | No authorized supported path to a new rootful/COW daemon was demonstrated |
+
+Docker's data root was not directly visible in the command workspace. Two short-lived
+helpers used the **already present image**, no network, a read-only root and a
+read-only `/inspect` bind. Their entrypoints ran filesystem/stat/layer-metadata
+inspection only, **not PostgreSQL**; no schema/user/data writes occurred. Their
+Postgres-declared data path was tmpfs, preventing an anonymous data volume. Only
+those two newly created, labeled, exited helpers were removed afterward. None of
+the resources present at task start was deleted. No prune, image pull, host graph
+removal or daemon configuration write occurred.
+
+The physical directory count includes stored layer trees, incomplete/cache state
+and temporary helper overhead. The non-API-attributed bytes are **not proven safe
+to delete**. No manual orphan classification or graph cleanup is authorized by
+this report. Mount metadata did not expose a configurable smaller quota; reading
+an infrastructure-enforced quota/configuration would require its owner. The
+measured filesystem is an upper bound on usable capacity, not a guarantee against
+a stricter quota.
+
+### Actual image metadata and unpacked-sizing model
+
+Only public registry manifest/config JSON and **4-byte gzip-footer HTTP ranges**
+were read; no registry image was pulled, unpacked or registered in this follow-up.
+The diagnostic helpers cloned only the already cached image into temporary container
+layers. Immutable manifest descriptors were checked to confirm gzip layer media types.
+All 68 layer-footer requests returned the expected ranges. Measurements target
+Linux amd64 image manifests; digests and per-layer sizes are retained in
+[storage diagnostics](../verification/phase9b/storage-diagnostics.json).
+
+| Required core image | Layers | Compressed GiB | Uncompressed tar GiB | Cumulative VFS model GiB |
+| --- | ---: | ---: | ---: | ---: |
+| `supabase/postgres:17.6.1.075` | 54 | 1.121 | 3.409 | 149.870 |
+| `supabase/gotrue:v2.186.0` | 6 | 0.023 | 0.048 | 0.170 |
+| `postgrest/postgrest:v14.3` | 1 | 0.006 | 0.020 | 0.020 |
+| `kong:2.8.1` | 4 | 0.046 | 0.134 | 0.278 |
+| `axllent/mailpit:v1.22.3` | 3 | 0.011 | 0.028 | 0.063 |
+| **Core total** | **68** | **1.208** | **3.638** | **150.400** |
+
+For tar sizes `u[1..n]`, the no-deletion VFS model is
+`sum((n - i + 1) * u[i])`, the sum of all cumulative layer trees. The database's
+large layer appears early (layer 10), so many later layers copy that large tree.
+Downloading only 1.12 GiB therefore does not establish adequate extraction space.
+Container init/writable copies, download/temp files, DB/shadow volumes, app/browser
+artifacts and safety reserve are additional. Optional Studio, storage, realtime,
+analytics and edge-runtime images are **not** in the core table; the complete
+standard stack needs more than this selected core inventory.
+
+These are **estimates**, not a measured fully installed image or a mathematical
+minimum: tar headers/allocation overhead, deletions/replacements, hardlinks, sparse
+files and shared layers affect real usage. Gzip ISIZE is modulo 2^32 and could wrap
+for a larger individual stream. The recorded largest returned layer is 2.55 GiB,
+but that alone cannot prove no wrap. The model assumes no deletion savings and
+sums images without cross-image deduplication. Nevertheless, a prior real ENOSPC
+plus a roughly 150 GiB core VFS model on a 63 GiB filesystem does **not** justify
+another pull, even with about 47 GiB currently free. Exact safe headroom for a full
+VFS deployment is not established. The current environment cannot safely resume
+this stack through its available daemon.
+
+The [offline sizing tool](../verification/phase9b/storage_model.py) reproduces these
+figures. Its **five tests pass**; they validate arithmetic/data consistency, not
+Supabase integration or a real extraction peak.
+
+### Concrete safe setup recommendation
+
+Provision a **new dedicated disposable Linux VM/environment**, rather than moving
+this default daemon's data directory or pruning its existing state:
+
+- Planning allowance: **4+ vCPU, 16 GiB RAM and a 200 GiB SSD with at least 150 GiB
+  initially free**, plus ordinary ample inode capacity. These are conservative
+  verification budgets, not measured peak usage or vendor minimum requirements.
+- Use a supported **copy-on-write** Docker backend (`overlay2` on a suitable
+  filesystem, or supported rootless overlay/fuse-overlayfs with working user
+  namespaces). Verify the actual selected driver; do not accept silent `vfs`
+  fallback. The observed core tar content is about 3.64 GiB before runtime/cache/
+  optional-service overhead, rather than the cumulative VFS model above.
+- Inventory **all intended official CLI images** on that target before starting
+  the complete standard stack. Keep substantial reserve for pulls, shadow DBs,
+  writable layers, synthetic volumes and browser/build artifacts. If VFS is the
+  only option, first size every selected image and add at least 50% planning
+  margin; even this core model alone implies over 225 GiB before further costs.
+  Do not retry it on the present 63 GiB filesystem.
+- If a second daemon is used on another capable host, give it distinct data-root,
+  exec-root, PID file, socket/context and network resources. Do not modify or reuse
+  a shared/default daemon's configuration/data root. Merely choosing another path
+  on this same constrained filesystem does not add capacity or capabilities.
+- Pin/verify the official CLI and image versions; use the supported Docker Hub
+  registry setting if ECR remains forbidden. Use a fresh, unlinked project and
+  synthetic users only. Bind every published DB/API/Auth/application/mail endpoint
+  to loopback; inspect actual labels, volumes, networks, bindings and DB URIs
+  before application schema writes. Run browser tests on that disposable host.
+
+No privileged workaround, Docker-in-Docker escalation or unsupported namespace
+bypass was attempted. Increasing shared/default daemon capacity or clearing its
+cache would require separate explicit infrastructure authorization, not a silent
+repair in this task.
+
+### Follow-up status
+
+| Area | Status |
+| --- | --- |
+| Read-only inventory/capacity/inode/layer diagnosis | PASS — observations recorded, quota visibility limits explicit |
+| Existing resource preservation | PASS — original image and default networks retained; no original container/volume existed or was removed |
+| Separate supported local daemon/data root | BLOCKED — no usable namespace/capability path demonstrated |
+| Safe headroom for full current VFS stack | BLOCKED — not established; no repeat pull |
+| Real Auth/JWT/PostgREST/SSR/browser/migrations | BLOCKED / NOT TESTED — not resumed |
+| Offline sizing arithmetic/data consistency | PASS — 5 tests |
+| Application regressions | NOT RERUN — no application or migration change; prior 212/type/lint/build evidence below is historical |
+
+The requested recovery cannot be performed safely with the available backend and
+permissions. Stop at diagnostics and provide the dedicated environment above.
+PR #1 remains draft/unmerged; no shared Supabase, credentials, deployment, payment
+activation or WhatsApp sending was used.
 
 Work is isolated on `verification/phase-9b` in `/workspace/wasla-phase9b`, based on
 `verification/phase-9a` at `7bbb1d8fcda7110425feeb9595e9ecdbb4df105f`.
