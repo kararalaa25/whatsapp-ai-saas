@@ -10,6 +10,8 @@ function load(path, dependencies = {}) {
   const context = { exports: {}, require(name) {
     if (name in dependencies) return dependencies[name]
     if (name === 'server-only') return {}
+    if (name === './matching' || name === '@/utils/knowledge/matching') return load('../src/utils/knowledge/matching.ts')
+    if (name === './context' || name === '@/utils/ai/context') return load('../src/utils/ai/context.ts')
     return require(name)
   } }
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
@@ -51,6 +53,8 @@ function harness(actor = 'owner-a') {
     ['admin', A, 'admin'], ['admin', B, 'admin'],
   ].map(([user_id, workspace_id, role]) => ({ user_id, workspace_id, role }))
   const rows = Object.fromEntries(entities.map(entity => [entity.table, [A, B].map((workspace_id, index) => ({ ...entity.data, id: entity.ids[index], workspace_id }))]))
+  rows.ai_conversations = [A, B].map((workspace_id, index) => ({ workspace_id, id: index ? 'ffffffff-ffff-4fff-8fff-ffffffffffff' : 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', title: 'Synthetic saved conversation', channel: 'playground', status: 'open', revision: 0, updated_at: '2026-11-14' }))
+  rows.ai_messages = []
   const reads = []; const rpcCalls = []; const invalidations = []
   const owns = workspace => memberships.some(m => m.user_id === actor && m.workspace_id === workspace && m.role === 'owner')
   const client = {
@@ -275,3 +279,42 @@ for (const entity of entities) {
     assert.deepEqual(h.rows, before)
   })
 }
+
+// Existing Phase 6A CRUD/foreign-ID tests remain above. The only new access
+// surface is the read-only Studio inspection action, so cover that boundary.
+function inspector(h) {
+  return load('../src/app/dashboard/agent/actions.ts', {
+    'next/cache': { revalidatePath() {} }, '@/utils/supabase/server': { createClient: async () => h.client },
+    '@/utils/ai/access': ownerAccess, '@/utils/ai/settings': load('../src/utils/ai/settings.ts'),
+    '@/utils/knowledge/retrieval': h.retrieval,
+    '@/utils/ai/reply': { generateReply() { assert.fail('Knowledge inspection must not generate replies') } },
+  }).inspectKnowledge
+}
+
+test('Studio knowledge inspection rechecks real owner guard and refuses member/admin/anonymous/foreign workspace access', async () => {
+  for (const [actor, workspace] of [['member', A], ['admin', A], [null, A], ['owner-a', B]]) {
+    const h = harness(actor)
+    assert.equal((await inspector(h)(workspace, null, 'Synthetic perfume sample delivery', [])).ok, false)
+    assert.equal(h.reads.some(read => read.table.startsWith('business_')), false)
+    assert.equal(h.rpcCalls.length, 0)
+  }
+})
+
+test('Studio inspection cannot mix a foreign conversation with an authorized workspace or expose the other tenant knowledge', async () => {
+  const h = harness('dual-owner'); const inspect = inspector(h)
+  for (const [workspace, foreignConversation] of [[A, h.rows.ai_conversations[1].id], [B, h.rows.ai_conversations[0].id]]) {
+    h.reads.length = 0
+    assert.equal((await inspect(workspace, foreignConversation, 'Synthetic perfume sample delivery', [])).ok, false)
+    assert.equal(h.reads.some(read => read.table.startsWith('business_')), false)
+  }
+  for (const [workspace, index] of [[A, 0], [B, 1]]) {
+    const result = await inspect(workspace, h.rows.ai_conversations[index].id, 'Synthetic perfume sample delivery', [{ role: 'user', content: 'Forged local subject' }])
+    assert.equal(result.ok, true); assert.equal(result.data.available, true)
+    for (const entry of result.data.entries) {
+      const entity = entities.find(entity => entity.kind === (entry.type === 'information' ? 'information' : entry.type))
+      assert.equal(entry.id, entity.ids[index])
+    }
+    assert.ok(result.data.entries.length > 0)
+  }
+  assert.equal(h.rpcCalls.length, 0)
+})

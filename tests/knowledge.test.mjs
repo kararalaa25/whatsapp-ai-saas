@@ -9,6 +9,8 @@ function load(path, deps = {}, env = {}, globals = {}) {
   const context = { ...globals, URL, exports: {}, process: { env }, require(name) {
     if (name in deps) return deps[name]
     if (name === 'server-only') return {}
+    if (name === './matching' || name === '@/utils/knowledge/matching') return load('../src/utils/knowledge/matching.ts')
+    if (name === './context' || name === '@/utils/ai/context') return load('../src/utils/ai/context.ts')
     return require(name)
   } }
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {

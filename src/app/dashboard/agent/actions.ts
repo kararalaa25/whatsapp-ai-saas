@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { requireAgentOwner } from '@/utils/ai/access'
 import { defaultSettings, settingsSchema, type AgentSettings, type ChatMessage, type Conversation } from '@/utils/ai/settings'
+import { boundedHistory } from '@/utils/ai/context'
+import type { KnowledgePreview } from '@/utils/knowledge/types'
 import { retrieveKnowledge } from '@/utils/knowledge/retrieval'
 import { generateReply } from '@/utils/ai/reply'
 
@@ -99,33 +101,45 @@ export async function setConversationStatus(workspaceId: string, conversationId:
   }
 }
 
-export async function previewReply(workspaceId: string, conversationId: string | null, input: string, mode: 'demo' | 'openai', draft: unknown, localHistory: unknown): Promise<Result<{ messages: ChatMessage[]; snapshot?: Snapshot }>> {
+// Saved conversations always supply their own history. Never accept a client
+// transcript as authority for another conversation, even for read-only debug.
+async function resolveTurn(workspaceId: string, conversationId: string | null, input: string, localHistory: unknown): Promise<Result<{ message: string; history: ChatMessage[]; snapshot?: Snapshot }>> {
+  if (!conversationId) return { ok: true, data: { message: customerText.parse(input), history: historySchema.parse(localHistory) } }
+  const result = await readConversation(workspaceId, uuid.parse(conversationId))
+  if (!result.ok) return result
+  const snapshot = result.data
+  if (snapshot.conversation.status !== 'open') return { ok: false, error: 'Reopen this conversation before generating a reply.' }
+  let history = snapshot.messages
+  let message = input
+  if (snapshot.conversation.channel === 'whatsapp_test') {
+    const latest = history.at(-1)
+    if (!latest || latest.role !== 'user') return { ok: false, error: 'No unanswered text message. Refresh after the next test delivery.' }
+    message = latest.content
+    history = history.slice(0, -1)
+  } else message = customerText.parse(input)
+  return { ok: true, data: { message, history, snapshot } }
+}
+
+export async function inspectKnowledge(workspaceId: string, conversationId: string | null, input: string, localHistory: unknown): Promise<Result<KnowledgePreview>> {
+  try {
+    const { supabase, workspace } = await ownerClient(workspaceId)
+    const turn = await resolveTurn(workspace.id, conversationId, input, localHistory)
+    if (!turn.ok) return turn
+    const history = boundedHistory(turn.data.history)
+    const result = await retrieveKnowledge(supabase, workspace.id, turn.data.message, history)
+    return { ok: true, data: { ...result, historyUsed: result.historyUsed ?? false, historyMessages: history.length } }
+  } catch { return { ok: false, error: 'Knowledge preview unavailable. Check owner access, the selected conversation, and the customer question.' } }
+}
+
+export async function previewReply(workspaceId: string, conversationId: string | null, input: string, mode: 'demo' | 'openai', draft: unknown, localHistory: unknown): Promise<Result<{ messages: ChatMessage[]; snapshot?: Snapshot; knowledge: KnowledgePreview }>> {
   try {
     z.enum(['demo', 'openai']).parse(mode)
     const { supabase, workspace } = await ownerClient(workspaceId)
     let settings = settingsSchema.parse(draft)
-    let history: ChatMessage[] = historySchema.parse(localHistory)
-    let message = input
-    let snapshot: Snapshot | undefined
-
-    if (conversationId) {
-      const result = await readConversation(workspace.id, uuid.parse(conversationId))
-      if (!result.ok) return result
-      snapshot = result.data
-      if (snapshot.conversation.status !== 'open') return { ok: false, error: 'Reopen this conversation before generating a reply.' }
-      history = snapshot.messages
-      if (snapshot.conversation.channel === 'whatsapp_test') {
-        const latest = history.at(-1)
-        if (!latest || latest.role !== 'user') return { ok: false, error: 'No unanswered text message. Refresh after the next test delivery.' }
-        message = latest.content
-        history = history.slice(0, -1)
-      } else {
-        message = customerText.parse(input)
-      }
-    } else {
-      if (mode !== 'demo') return { ok: false, error: 'Start a saved conversation before using OpenAI.' }
-      message = customerText.parse(input)
-    }
+    if (!conversationId && mode !== 'demo') return { ok: false, error: 'Start a saved conversation before using OpenAI.' }
+    const turn = await resolveTurn(workspace.id, conversationId, input, localHistory)
+    if (!turn.ok) return turn
+    const { history, message, snapshot } = turn.data
 
     if (mode === 'openai') {
       if (!process.env.OPENAI_API_KEY) return { ok: false, error: 'OpenAI is not configured on the server. Demo mode remains available.' }
@@ -134,7 +148,9 @@ export async function previewReply(workspaceId: string, conversationId: string |
       settings = settingsSchema.parse(saved.data)
     }
     if (!settings.enabled) return { ok: false, error: 'Enable agent previews first. OpenAI uses the saved setting; demo uses the editor.' }
-    const knowledge = await retrieveKnowledge(supabase, workspace.id, message)
+    const context = boundedHistory(history)
+    const retrieved = await retrieveKnowledge(supabase, workspace.id, message, context)
+    const knowledge: KnowledgePreview = { ...retrieved, historyUsed: retrieved.historyUsed ?? false, historyMessages: context.length }
     if (mode === 'openai' && !knowledge.available) return { ok: false, error: 'Business knowledge could not be loaded. Check owner access and knowledge storage, or use simulated demo mode.' }
     if (mode === 'openai') {
       const { error } = await supabase.rpc('reserve_ai_preview', { p_workspace_id: workspace.id })
@@ -151,9 +167,9 @@ export async function previewReply(workspaceId: string, conversationId: string |
       if (error) return { ok: false, error: error.code === '40001' ? 'Conversation changed while generating. Reload it before trying again.' : 'Draft could not be saved. Check access, conversation limits, and reload before retrying.' }
       const updated = await readConversation(workspace.id, conversationId)
       if (!updated.ok) return updated
-      return { ok: true, data: { messages: updated.data.messages, snapshot: updated.data } }
+      return { ok: true, data: { messages: updated.data.messages, snapshot: updated.data, knowledge } }
     }
-    return { ok: true, data: { messages: [...history, { role: 'user', content: message }, { role: 'assistant', content: reply, provider: 'demo' }].slice(-20) as ChatMessage[] } }
+    return { ok: true, data: { messages: [...history, { role: 'user', content: message }, { role: 'assistant', content: reply, provider: 'demo' }].slice(-20) as ChatMessage[], knowledge } }
   } catch {
     return { ok: false, error: 'Reply preview failed. Check owner access, message length and agent settings. If OpenAI was selected, check server configuration or try demo mode.' }
   }

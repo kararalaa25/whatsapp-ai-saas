@@ -1,48 +1,89 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ChatMessage } from '@/utils/ai/settings'
 import { readKnowledge } from './access'
 import { topicLabels, type Knowledge } from './schema'
+import { normalize, words, terms, intents, intentKeys, oneEdit, transliterated } from './matching'
+import type { KnowledgeEntry } from './types'
+export { normalize } from './matching'
+export type { KnowledgeEntry } from './types'
 
 export const MAX_KNOWLEDGE_CHARS = 10000
 export const MAX_KNOWLEDGE_ITEMS = 8
-export type KnowledgeEntry = { type: 'product' | 'faq' | 'information'; id: string; data: Record<string, string | number | null> }
-const ignored = new Set(['the', 'and', 'for', 'are', 'you', 'your', 'what', 'how', 'can', 'with', 'this', 'that', 'have', 'about', 'please', 'من', 'في', 'هل', 'ما', 'على', 'عن', 'الى', 'كيف'])
-export function normalize(value: string) {
-  return value.normalize('NFKC').toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي')
-}
-function tokens(value: string) { return normalize(value).match(/[\p{L}\p{N}]+/gu) ?? [] }
-const topicWords = {
-  opening_hours: 'hours opening open close schedule وقت ساعات دوام فتح اغلاق',
-  delivery: 'delivery shipping deliver توصيل شحن',
-  payment_methods: 'payment pay cash card دفع نقد بطاقة',
-  returns: 'return returns refund exchange استرجاع ارجاع استبدال',
-  general: 'business contact address location information معلومات عنوان موقع اتصال',
-}
-// No embeddings, model calls or claims of semantic understanding. Bounded lexical
-// matching works with Arabic/English and keeps prices/stock exactly as stored.
-export function selectKnowledge(knowledge: Knowledge, question: string): KnowledgeEntry[] {
-  const terms = [...new Set(tokens(question).filter(term => term.length > 1 && term.length <= 64 && !ignored.has(term)))].slice(0, 24)
-  if (!terms.length) return []
-  const score = (primary: string, secondary: string) => {
-    const first = new Set(tokens(primary)); const rest = new Set(tokens(secondary))
-    return terms.reduce((sum, term) => sum + (first.has(term) ? 4 : rest.has(term) ? 1 : 0), 0)
+const policyIntent = { opening_hours: 'hours', delivery: 'delivery', payment_methods: 'payment', returns: 'returns', general: 'contact' }
+function nameMatch(name: string[], query: string[]) {
+  let score = 0
+  let reason: KnowledgeEntry['reason'] = 'keyword'
+  for (const term of query.filter(term => !intentKeys.has(term))) {
+    if (name.includes(term)) { score += 12; if (reason === 'keyword') reason = 'name' }
+    else if (/^\p{L}{5,}$/u.test(term) && name.some(word => /^\p{L}{5,}$/u.test(word) && oneEdit(term, word))) { score += 6; reason = 'spelling' }
+    else if (name.some(word => transliterated(term, word))) { score += 5; if (reason !== 'spelling') reason = 'transliteration' }
   }
+  return { score, reason }
+}
+function sizeTokens(text: string) {
+  return (normalize(text).match(/\d+(?:\.\d+)?\s*(?:ml|gb|tb|kg|mg|l|مل|ملي)(?=$|[^\p{L}\p{N}])/gu) ?? []).map(size => size.replace(/\s/g, ''))
+}
+function rankKnowledge(knowledge: Knowledge, question: string, history: ChatMessage[]) {
+  const query = terms(question).slice(0, 24)
+  const requested = intents(question)
+  const phrase = ` ${words(question).join(' ')} `
+  const skuHints: string[] = normalize(question).match(/[a-z0-9]+(?:[-_][a-z0-9]+)+/g) ?? []
+  const askedSizes = sizeTokens(question)
+  const active = knowledge.products.filter(product => product.active)
+  const names = active.map(product => terms(`${product.name} ${product.sku}`))
+  // Terms already in the product category are useful matches but not a unique
+  // product anchor (e.g. "perfume" alone should not resolve an ambiguous "it").
+  const anchors = active.map((product, index) => names[index].filter(term => !terms(product.category).includes(term)))
+  const currentNames = anchors.map(name => nameMatch(name, query))
+  let previousTerms: string[] = []
+  const followup = /\b(?:it|its|that|this|one|those|them)\b|سعره|سعرها|بيها|بيه|هذا|هذي|هاي|متوفره|موجوده|وشكد/.test(normalize(question)) || (query.length <= 3 && (requested.has('price') || requested.has('stock')))
+  // Use only previous CUSTOMER subjects, never assistant drafts as evidence.
+  // An explicit new product name always takes precedence over old context.
+  const categoryTerms = new Set(active.flatMap(product => terms(product.category)))
+  const hasNewSubject = query.some(term => !intentKeys.has(term) && !categoryTerms.has(term))
+  if (followup && !hasNewSubject && !currentNames.some(match => match.score > 0)) {
+    for (const turn of history.filter(turn => turn.role === 'user').slice(-3).reverse()) {
+      const candidate = terms(turn.content).slice(0, 24)
+      if (anchors.some(name => nameMatch(name, candidate).score > 0)) { previousTerms = candidate; break }
+    }
+  }
+  const historyUsed = previousTerms.length > 0
+  const combined = [...new Set([...query, ...previousTerms])]
+  const named = anchors.map((name, index) => historyUsed ? nameMatch(name, previousTerms) : currentNames[index])
+  const hasAnchor = named.some(match => match.score > 0)
+  const overlap = (text: string, tokens: string[]) => { const document = new Set(terms(text)); return tokens.filter(term => document.has(term)).length }
   const candidates = [
-    ...knowledge.products.filter(p => p.active).map(p => ({ score: score(`${p.name} ${p.sku} ${p.category}`, p.description),
-      entry: { type: 'product' as const, id: p.id, data: { name: p.name, description: p.description, category: p.category, sku: p.sku, price: p.price, currency: p.currency, stock_status: p.stock_status } } })),
-    ...knowledge.faqs.filter(f => f.active).map(f => ({ score: score(f.question, f.answer),
-      entry: { type: 'faq' as const, id: f.id, data: { question: f.question, answer: f.answer } } })),
-    ...knowledge.information.map(info => ({ score: score(`${topicLabels[info.topic]} ${topicWords[info.topic]}`, info.content),
-      entry: { type: 'information' as const, id: info.id, data: { topic: info.topic, content: info.content } } })),
-  ].filter(item => item.score > 0).sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id))
+    ...active.map((product, index) => {
+      const match = named[index]
+      const exact = phrase.includes(` ${words(product.name).join(' ')} `) || (!!product.sku && phrase.includes(` ${words(product.sku).join(' ')} `))
+      const sku = normalize(product.sku)
+      const conflictingSKU = !!sku && !skuHints.includes(sku) && skuHints.some(hint => hint.split(/[-_]/)[0] === sku.split(/[-_]/)[0])
+      const namedSizes = sizeTokens(product.name)
+      const conflictingSize = askedSizes.length > 0 && (namedSizes.length === 0 || !askedSizes.some(size => namedSizes.includes(size)))
+      const reason = conflictingSKU || conflictingSize ? 'variant' as const : historyUsed && match.reason === 'name' ? 'history' as const : match.reason
+      const score = (hasAnchor && match.score === 0 ? 0 : match.score * 4 + (exact ? 60 : 0) + overlap(product.category, combined) * 3 + overlap(product.description, combined))
+      return { score, entry: { type: 'product' as const, id: product.id, reason,
+        data: { name: product.name, description: product.description, category: product.category, sku: product.sku, price: product.price, currency: product.currency, stock_status: product.stock_status } } }
+    }),
+    ...knowledge.faqs.filter(faq => faq.active).map(faq => ({ score: overlap(faq.question, combined) * 6 + overlap(faq.answer, query),
+      entry: { type: 'faq' as const, id: faq.id, reason: 'keyword' as const, data: { question: faq.question, answer: faq.answer } } })),
+    ...knowledge.information.map(info => ({ score: (requested.has(policyIntent[info.topic]) || (info.topic === 'general' && requested.has('human')) ? 90 : 0) + overlap(`${topicLabels[info.topic]} ${info.content}`, query) * 2,
+      entry: { type: 'information' as const, id: info.id, reason: 'keyword' as const, data: { topic: info.topic, content: info.content } } })),
+  ].filter(candidate => candidate.score > 0).sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id))
   const selected: KnowledgeEntry[] = []
-  for (const { entry } of candidates) {
+  // Explicitly requested policies get space before generic product/category hits.
+  const ordered = [...candidates.filter(item => item.entry.type === 'information' && item.score >= 90), ...candidates.filter(item => !(item.entry.type === 'information' && item.score >= 90))]
+  for (const { entry } of ordered) {
     if (selected.length === MAX_KNOWLEDGE_ITEMS) break
     if (JSON.stringify([...selected, entry]).length <= MAX_KNOWLEDGE_CHARS) selected.push(entry)
   }
-  return selected
+  return { entries: selected, historyUsed }
 }
-export async function retrieveKnowledge(supabase: SupabaseClient, workspaceId: string, question: string) {
-  try { return { available: true, entries: selectKnowledge(await readKnowledge(supabase, workspaceId), question) } }
-  catch { return { available: false, entries: [] as KnowledgeEntry[] } }
+export function selectKnowledge(knowledge: Knowledge, question: string, history: ChatMessage[] = []): KnowledgeEntry[] {
+  return rankKnowledge(knowledge, question, history).entries
+}
+export async function retrieveKnowledge(supabase: SupabaseClient, workspaceId: string, question: string, history: ChatMessage[] = []) {
+  try { return { available: true, ...rankKnowledge(await readKnowledge(supabase, workspaceId), question, history) } }
+  catch { return { available: false, entries: [] as KnowledgeEntry[], historyUsed: false } }
 }

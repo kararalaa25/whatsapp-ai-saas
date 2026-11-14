@@ -59,8 +59,10 @@ clarification/human help for missing or conflicting facts. This is prompt
 injection defense, not a guarantee about arbitrary model output; previews still
 require human review and cannot call tools or deliver messages.
 
-Demo mode stays a fixed, clearly simulated response in English/Arabic, never
-pretends to answer using a model, and never claims retrieved facts. It works even
+Demo mode remains clearly simulated in English/Arabic and never pretends to
+use a model. Phase 6B adds deterministic service templates that can quote
+validated structured product facts when identity is confirmed; uncertain
+identity requires clarification. See the [Phase 6B guide](phase6b-knowledge-assistant.md). It works even
 if Phase 6A storage is unavailable. Real OpenAI previews consume this knowledge
 when an API key is configured later; retrieval failure blocks the model call and
 quota reservation with a safe error. An empty but available knowledge base is

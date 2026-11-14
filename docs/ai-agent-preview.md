@@ -6,19 +6,19 @@ owner may enter. Enable previews, enter synthetic business guidance, and use
 Temporary demo works before the new migration and is not saved. No environment
 variables are required to build or run the automated tests.
 
-Later, separately review/apply **only**
-`supabase/migrations/20261114020000_ai_agent_playground.sql` after the already
-applied workspace and Phase 5A migrations. Do not rerun or edit those migrations.
-Saved settings/history and new WhatsApp conversation ingestion need this schema.
-The new migration adds one composite unique constraint to the existing inbound
-table; it does not backfill or change existing messages. PostgreSQL execution,
-RLS and concurrent-delivery tests have not been performed by this implementation.
+Studio requires the existing Phase 4, Phase 5A and Phase 5B schemas, including
+`supabase/migrations/20261114020000_ai_agent_playground.sql`. Those migrations
+have been reported as manually applied to the test project. Do not rerun or edit
+them. Phase 6B requires no migration. Saved settings/history and WhatsApp
+conversation ingestion rely on the existing tables; Phase 5B did not backfill
+old messages. This implementation has not executed live PostgreSQL/RLS tests.
 
-Save settings, start a **New playground**, and type customer questions. For real
-model drafts, optionally configure server-only `OPENAI_API_KEY`, restart, select
-**OpenAI preview**, and use saved settings. Model choices are allowlisted in code
+
+Save settings, start a **New playground**, and type customer questions. If the server already has OpenAI previews available, select
+**OpenAI preview** and use saved settings. Phase 6B requires no new credentials
+or external configuration; Demo and Inspect knowledge work without a model. Model choices are allowlisted in code
 and SQL. This makes paid model calls and sends the selected business guidance
-and latest 20 messages to OpenAI with `store:false`; review provider retention
+and a bounded recent tail of up to 12 messages / 12,000 characters, plus up to eight selected knowledge references / 10,000 characters, to OpenAI with `store:false`; review provider retention
 and use synthetic data only. A database reservation limits each owner to 50
 OpenAI preview attempts per UTC day across all their workspaces, including failed
 provider attempts. Each call has a 20-second timeout, no automatic retries and a
@@ -28,8 +28,7 @@ model tools or action execution paths, and outbound delivery is blocked in code.
 
 Phase 5B's webhook calls the new service-role-only `ingest_whatsapp_ai_test_message`
 RPC, which delegates unchanged Phase 5A persistence and atomically groups NEW
-text messages by verified connection plus signed sender ID. Apply the new
-migration before testing this updated webhook; until then storage returns 503
+text messages by verified connection plus signed sender ID. That existing schema must be present for ingress; missing storage returns 503
 and Meta can retry. Existing Phase 5A messages without a sender are not guessed
 into conversations. Keep all Meta assets and message contents test-only. The
 stored sender ID is personal data even in a test environment; new tables are
@@ -52,3 +51,10 @@ Checks: `node --test tests/*.test.mjs`, `npm run lint`, `npx tsc --noEmit`,
 `npm run build`. Live check later: owner opens studio; member/foreign workspace
 is refused; save settings; run two playground turns; refresh and reopen history;
 receive a synthetic signed test message; generate a draft; confirm no send call.
+
+Phase 6B adds Iraqi Arabic/English matching, conservative product-name hints,
+read-only **Inspect knowledge**, and a transient source panel. See
+[the Phase 6B guide](phase6b-knowledge-assistant.md) for current retrieval,
+privacy, simulated-template behavior and verification limits. The migration
+instructions above describe the original Phase 5B prerequisites; do not reapply
+existing migrations. No migration is required for Phase 6B.
