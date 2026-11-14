@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Meta's verification token is a query parameter. Suppress development request
-  // logs for this endpoint; production ingress must redact it separately.
-  logging: { incomingRequests: { ignore: [/\/api\/webhooks\/whatsapp(?:\?|\/|$)/] } },
+  // Verification tokens and Auth codes are query parameters. Suppress these
+  // development request logs; production ingress must redact them separately.
+  logging: { incomingRequests: { ignore: [/\/api\/webhooks\/whatsapp(?:\?|\/|$)/, /\/auth\/(?:callback|confirm|recovery)(?:\?|\/|$)/] } },
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,

@@ -12,7 +12,7 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet, _cacheHeaders) {
+        setAll(cookiesToSet) {
           // Server Actions and Route Handlers can write cookies. Server
           // Components rely on Proxy refresh: if a write is still attempted
           // there, fail closed rather than hiding a persistence failure.
@@ -25,7 +25,7 @@ export async function createClient() {
           // response, and next/headers exposes only read-only request headers.
           // The Proxy/Route Handler must apply cache controls to its response;
           // Server Actions receive Next.js's built-in no-store protection.
-          // _cacheHeaders cannot be propagated through this client-only API.
+          // Response cache headers cannot be propagated through this client-only API.
         },
       },
     }

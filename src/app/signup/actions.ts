@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { applicationOrigin } from '@/utils/auth/origin'
 
 export type SignupResult =
   | { status: 'error'; error: string }
@@ -43,30 +44,7 @@ export async function signup(formData: FormData): Promise<SignupResult> {
   }
 
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    // Validate the original spelling too: URL parsing can normalize paths,
-    // backslashes, or whitespace that must not be accepted as an origin.
-    if (!appUrl || !/^https?:\/\/[^\s/@?#\\]+\/?$/i.test(appUrl)) {
-      return errorResult
-    }
-
-    const origin = new URL(appUrl)
-    const isLocalDevelopment =
-      process.env.NODE_ENV === 'development' &&
-      (origin.hostname === 'localhost' || origin.hostname === '127.0.0.1')
-
-    if (
-      origin.username ||
-      origin.password ||
-      origin.pathname !== '/' ||
-      origin.search ||
-      origin.hash ||
-      (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && isLocalDevelopment))
-    ) {
-      return errorResult
-    }
-
-    const emailRedirectTo = new URL('/auth/callback', origin.origin).toString()
+    const emailRedirectTo = new URL('/auth/callback', applicationOrigin()).toString()
     const supabase = await createClient()
     const { error } = await supabase.auth.signUp({
       email,
