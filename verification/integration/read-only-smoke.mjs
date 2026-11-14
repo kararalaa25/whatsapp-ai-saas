@@ -56,7 +56,7 @@ export async function runSmoke(env, fetcher = fetch) {
   check('Own workspace visible', array(own) && own.data.length === 1 && own.data[0].id === config.own)
   const foreign = await get(`/rest/v1/workspaces?select=id&id=eq.${config.foreign}`, config.token)
   check('Foreign workspace hidden', array(foreign) && foreign.data.length === 0)
-  const plans = await get('/rest/v1/subscription_plans?select=id,provisional&order=id', config.token)
+  const plans = await get('/rest/v1/wasla_subscription_plans?select=id,provisional&order=id', config.token)
   check('Four provisional plans visible', array(plans) && plans.data.length === 4 &&
     plans.data.every(p => p.provisional === true) && plans.data.map(p => p.id).join(',') === 'business,pro,starter,trial')
   for (const table of ['workspace_subscriptions', 'whatsapp_inbox_state', 'whatsapp_reply_drafts', 'whatsapp_automation_settings']) {

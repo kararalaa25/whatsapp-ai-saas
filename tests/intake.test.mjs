@@ -6,7 +6,7 @@ import { loader } from './helpers/load-ts.mjs'
 const A='11111111-1111-4111-8111-111111111111', B='22222222-2222-4222-8222-222222222222'
 const secret='synthetic-intake-signing-secret'
 const globals={Buffer,Uint8Array,TextDecoder,Request,Response,URL}
-const sql=readFileSync(new URL('../supabase/migrations/20261114180000_phase8_subscriptions.sql',import.meta.url),'utf8')
+const sql=readFileSync(new URL('../supabase/manual/20261114180000_phase8_existing_development.sql',import.meta.url),'utf8')
 
 // Contract model behind the REAL route, adapter and owner actions. It is not a
 // database emulator and cannot prove RLS, locks, SQL binding or transactions.
@@ -50,7 +50,7 @@ function fixture(){
  async function rpc(name,args,service=false){
   calls.push({name,args,service})
   const task=tail.then(()=>{
-   if(name==='ingest_whatsapp_ai_test_message')return service?accept(args):{data:null,error:{code:'42501'}}
+   if(name==='ingest_wasla_whatsapp_test_message')return service?accept(args):{data:null,error:{code:'42501'}}
    const w=args.p_workspace_id
    if(service||!owns(w))return {data:null,error:{code:'42501'}}
    if(name==='get_whatsapp_intake'){
@@ -156,8 +156,8 @@ test('invalid signatures, foreign identities, non-owners and privileged-client m
  const before=f.calls.length;await assert.rejects(f.actions.loadIntake(A,1000));assert.equal(f.calls.length,before)
 })
 test('SQL intake preserves transaction boundaries, bounded state, tenant FKs and narrow execution grants',()=>{
- const process=sql.slice(sql.indexOf('CREATE FUNCTION workspace_private.process_whatsapp_intake'),sql.indexOf('-- Same RPC identity'))
- const accept=sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.ingest_whatsapp_ai_test_message'),sql.indexOf('CREATE FUNCTION public.get_whatsapp_intake'))
+ const process=sql.slice(sql.indexOf('CREATE FUNCTION workspace_private.process_whatsapp_intake'),sql.indexOf('-- Separate RPC preserves'))
+ const accept=sql.slice(sql.indexOf('CREATE FUNCTION public.ingest_wasla_whatsapp_test_message'),sql.indexOf('CREATE FUNCTION public.get_whatsapp_intake'))
  assert.match(process,/BEGIN\s+IF EXISTS[\s\S]*?INSERT INTO public.ai_conversations[\s\S]*?EXCEPTION WHEN SQLSTATE '54000'/)
  assert.doesNotMatch(process,/INSERT INTO public.whatsapp_inbound_messages|DELETE FROM|reserve_subscription_ai|generateReply|automation/)
  assert.ok(accept.indexOf('INSERT INTO public.whatsapp_inbound_messages')<accept.indexOf('process_whatsapp_intake(w,i.id)'))

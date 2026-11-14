@@ -17,6 +17,8 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = sorted((ROOT / 'supabase/migrations').glob('*.sql'))
 IMAGE = 'postgres@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07'
+PLAN_TABLE = 'public.subscription_plans'
+INGRESS_RPC = 'public.ingest_whatsapp_ai_test_message'
 RUN_ID = uuid.uuid4().hex
 CONTAINER = None
 DATABASES = set()
@@ -116,9 +118,9 @@ class DatabaseTests(unittest.TestCase):
         self.b = scalar("SELECT public.create_workspace('Synthetic B');", role='authenticated', actor=self.other)
         self.phone = str(100000 + int(uuid.uuid4().hex[:8], 16))
         self.phone_b = str(int(self.phone) + 1)
-        sql(f"""UPDATE public.subscription_plans SET limits=jsonb_set(limits,'{{members}}','2') WHERE id='trial';
+        sql(f"""UPDATE {PLAN_TABLE} SET limits=jsonb_set(limits,'{{members}}','2') WHERE id='trial';
 INSERT INTO public.workspace_members(workspace_id,user_id,role) VALUES('{self.a}','{self.member}','member');
-UPDATE public.subscription_plans SET limits=jsonb_set(limits,'{{members}}','1') WHERE id='trial';
+UPDATE {PLAN_TABLE} SET limits=jsonb_set(limits,'{{members}}','1') WHERE id='trial';
 INSERT INTO public.whatsapp_connections(workspace_id,phone_number_id,waba_id) VALUES('{self.a}','{self.phone}','200'),('{self.b}','{self.phone_b}','201');
 INSERT INTO public.ai_agent_settings(workspace_id,enabled) VALUES('{self.a}',true),('{self.b}',true);""")
         self.ids = []
@@ -129,7 +131,7 @@ INSERT INTO public.ai_agent_settings(workspace_id,enabled) VALUES('{self.a}',tru
         phone, waba = (self.phone, '200') if tenant == 'a' else (self.phone_b, '201')
         # Only synthetic test strings; SQL quote escaping protects the harness too.
         body = body.replace("'", "''")
-        result = sql(f"SELECT public.ingest_whatsapp_ai_test_message('{phone}','{waba}','{event}','text','{body}','2026-11-14T00:00:00Z','{sender}');", role='service_role', check=check)
+        result = sql(f"SELECT {INGRESS_RPC}('{phone}','{waba}','{event}','text','{body}','2026-11-14T00:00:00Z','{sender}');", role='service_role', check=check)
         return result.stdout.strip() if check else result
 
     def count(self, table, clause='true', tenant=None):
@@ -179,7 +181,7 @@ INSERT INTO public.ai_agent_settings(workspace_id,enabled) VALUES('{self.a}',tru
             self.denied(f"SELECT workspace_private.process_whatsapp_intake('{self.a}',gen_random_uuid());",role=role)
             self.denied(f"UPDATE public.workspace_subscriptions SET plan_id='business' WHERE workspace_id='{self.a}';",role=role)
         self.denied(f"SELECT public.reconcile_whatsapp_intake('{self.a}');",role='service_role')
-        self.denied(f"SELECT public.ingest_whatsapp_ai_test_message('{self.phone}','200','forged','text','x',now(),'123456789');")
+        self.denied(f"SELECT {INGRESS_RPC}('{self.phone}','200','forged','text','x',now(),'123456789');")
         self.denied(f"SELECT public.ingest_whatsapp_test_message('{self.phone}','200','old-path','text','x',now());",role='service_role')
         self.denied(f"SELECT workspace_private.transition_subscription('{self.a}',0,'active','business','forged');")
 
@@ -196,7 +198,7 @@ INSERT INTO public.ai_agent_settings(workspace_id,enabled) VALUES('{self.a}',tru
         self.assertEqual(self.reconcile()['processed'],0)
 
     def test_quota_rollback_and_duplicate_identity(self):
-        sql(f"UPDATE public.subscription_plans SET limits=jsonb_set(limits,'{{whatsapp_conversations}}','1') WHERE id='trial';")
+        sql(f"UPDATE {PLAN_TABLE} SET limits=jsonb_set(limits,'{{whatsapp_conversations}}','1') WHERE id='trial';")
         self.assertEqual(self.ingest(),'inserted')
         event='duplicate-'+uuid.uuid4().hex
         self.assertEqual(self.ingest(sender='222222222',event=event),'deferred')
@@ -227,7 +229,7 @@ WHERE c.workspace_id='{self.a}' ORDER BY c.updated_at DESC,m.position DESC LIMIT
         return result.stdout.strip() if check else result
 
     def test_concurrent_last_conversation_unit(self):
-        sql("UPDATE public.subscription_plans SET limits=jsonb_set(limits,'{whatsapp_conversations}','1') WHERE id='trial';")
+        sql(f"UPDATE {PLAN_TABLE} SET limits=jsonb_set(limits,'{{whatsapp_conversations}}','1') WHERE id='trial';")
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             results=list(pool.map(lambda n:self.ingest(sender=str(700000000+n)),range(8)))
         self.assertEqual(results.count('inserted'),1)
@@ -303,7 +305,7 @@ SELECT workspace_id,id,connection_id,'999999999',received_at FROM public.whatsap
         self.assertTrue(all(r.returncode==0 for r in replies))
         self.assertEqual(sum(r.stdout.strip()=='t' for r in replies),1)
         self.assertEqual(scalar(f"SELECT used FROM workspace_private.ai_preview_usage WHERE user_id='{self.owner}';"),'1')
-        sql("UPDATE public.subscription_plans SET limits=jsonb_set(limits,'{ai_generations}','2') WHERE id='trial';")
+        sql(f"UPDATE {PLAN_TABLE} SET limits=jsonb_set(limits,'{{ai_generations}}','2') WHERE id='trial';")
         with concurrent.futures.ThreadPoolExecutor(max_workers=7) as pool:
             replies=list(pool.map(reserve,ids[1:]))
         self.assertEqual(sum(r.returncode==0 for r in replies),1)
@@ -381,7 +383,7 @@ SELECT workspace_id,id,connection_id,'999999999',received_at FROM public.whatsap
         self.assertEqual(scalar(f"SELECT status FROM public.whatsapp_reply_drafts WHERE id='{draft}';"),'draft')
 
     def test_real_http_route_with_postgres_batch(self):
-        outcome=subprocess.run(['node',str(ROOT/'verification/phase9a/http_database.mjs'),CONTAINER,RUN_ID,'wasla_phase9a_suite',self.a,self.phone],cwd=ROOT,text=True,capture_output=True,timeout=120)
+        outcome=subprocess.run(['node',str(ROOT/'verification/phase9a/http_database.mjs'),CONTAINER,RUN_ID,'wasla_phase9a_suite',self.a,self.phone,INGRESS_RPC],cwd=ROOT,text=True,capture_output=True,timeout=120)
         self.assertEqual(outcome.returncode,0,outcome.stderr)
         EVIDENCE['http_database_bridge']=json.loads(outcome.stdout.strip())
 
@@ -501,7 +503,7 @@ SELECT workspace_id,metric,'{first}:0',period_start FROM workspace_private.subsc
 
     def tearDown(self):
         sql("UPDATE verification_private.fault_flag SET enabled=false;")
-        sql("UPDATE public.subscription_plans SET limits=jsonb_set(jsonb_set(limits,'{whatsapp_conversations}','50'),'{ai_generations}','50') WHERE id='trial';")
+        sql(f"UPDATE {PLAN_TABLE} SET limits=jsonb_set(jsonb_set(limits,'{{whatsapp_conversations}}','50'),'{{ai_generations}}','50') WHERE id='trial';")
 
 
 class EvidenceResult(unittest.TextTestResult):

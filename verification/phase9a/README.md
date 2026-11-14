@@ -1,5 +1,11 @@
 # Phase 9A disposable PostgreSQL verification
 
+For the current existing-development compatibility path, run
+`python3 verification/compatibility/run_database.py` instead. It reuses this
+runner’s isolation checks with the selected alternative Phase 8 installer and
+platform-preservation fixtures; see `verification/compatibility/README.md`.
+The historical Phase 9A results below remain evidence for their original commit.
+
 This runner **creates its own test target**. It does not accept a database URL,
 existing database, project ref, credential, host or container argument. Do not
 adapt it to connect to a shared or production Supabase project.

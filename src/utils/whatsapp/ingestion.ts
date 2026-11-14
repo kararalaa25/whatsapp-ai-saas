@@ -13,7 +13,7 @@ export function createIngestor() {
   })
 
   return async (message: InboundMessage): Promise<'inserted' | 'duplicate' | 'ignored' | 'deferred'> => {
-    const { data, error } = await supabase.rpc('ingest_whatsapp_ai_test_message', {
+    const { data, error } = await supabase.rpc('ingest_wasla_whatsapp_test_message', {
       p_phone_number_id: message.phoneNumberId,
       p_waba_id: message.wabaId,
       p_meta_message_id: message.metaMessageId,

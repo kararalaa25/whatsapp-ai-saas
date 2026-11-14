@@ -1,6 +1,18 @@
 # Local Terminal and real browser testing, without Docker
 
-Use a **new dedicated development Supabase project** with synthetic data. The
+> **Existing development database compatibility:** use
+> [the current exact SQL order](existing-development-migration.md) for the
+> user-confirmed platform catalog collision. Do not run the original Phase 8
+> installer on that database. The current application uses the separate Wasla
+> plan catalog and ingestion RPC described there. Earlier results below are
+> historical and do not establish the hosted schema state.
+
+
+Use a **separately authorized development Supabase target** with synthetic data.
+For this compatibility branch, verify the platform and Phases 4–6A baseline first
+using [the existing-development guide](existing-development-migration.md). An empty
+project needs its real reviewed platform baseline; do not create placeholder
+platform tables merely to satisfy the installer. The
 Next.js app runs on your computer; Auth/PostgREST/database run in that development
 project. This avoids the Phase 9B local Docker capacity blocker but is **not** an
 offline/local Supabase stack. No hosted target was contacted during preparation.
@@ -9,8 +21,9 @@ target-specific authorization. Never substitute an existing shared project.
 
 ## Prepare the project and local app
 
-1. Use [the SQL Editor runbook](manual-supabase-migrations.md) to verify a fresh
-   target and apply all seven files after authorization. Do not link the CLI, run
+1. Use [the existing-development SQL order](existing-development-migration.md) to
+   verify the supplied baseline and apply 7A, 7B and the compatible Phase 8 installer
+   after target-specific authorization. Do not run the original Phase 8 file. Do not link the CLI, run
    `supabase db push`, or reuse a production `.env`/service-role credential.
 2. In the dedicated project's Auth URL configuration, set the local site origin
    to `http://localhost:3000` and allow the exact callback
@@ -31,7 +44,7 @@ target-specific authorization. Never substitute an existing shared project.
    fresh checkout of the reviewed integration branch:
 
    ```sh
-   git clone --branch integration/phase8-supabase-readiness https://github.com/kararalaa25/whatsapp-ai-saas.git wasla-dev
+   git clone --branch integration/phase8-existing-dev-compatibility https://github.com/kararalaa25/whatsapp-ai-saas.git wasla-dev
    cd wasla-dev
    npm ci
    touch .env.local
@@ -155,7 +168,7 @@ only after separately confirming the dedicated target. Never import customer dat
   INSERT INTO public.whatsapp_connections
     (workspace_id,phone_number_id,waba_id,is_test,status)
   VALUES ('<synthetic-workspace-uuid>','900000000000001','900000000000002',true,'active');
-  SELECT public.ingest_whatsapp_ai_test_message(
+  SELECT public.ingest_wasla_whatsapp_test_message(
     '900000000000001','900000000000002','wasla-dev-inbound-<unique-run>-1',
     'text','What are your opening hours?',now(),'900000000000003');
   COMMIT;

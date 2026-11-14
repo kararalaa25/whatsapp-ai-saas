@@ -1,5 +1,10 @@
 # Integration preparation tools
 
+Current schema: `public.wasla_subscription_plans` and
+`public.ingest_wasla_whatsapp_test_message`. Use the
+[existing-development SQL order](../../docs/existing-development-migration.md),
+not the original Phase 8 installer.
+
 Start at [readiness report](../../docs/integration-readiness.md),
 [manual SQL runbook](../../docs/manual-supabase-migrations.md) and
 [local Terminal/browser guide](../../docs/local-supabase-testing.md).

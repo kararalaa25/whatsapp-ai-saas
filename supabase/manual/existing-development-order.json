@@ -1,0 +1,62 @@
+{
+  "purpose": "Manual SQL Editor order for existing development; preparation only, never automatic execution",
+  "do_not_run": "supabase/migrations/20261114180000_phase8_subscriptions.sql",
+  "prerequisites": "Existing Phases 4\u20136A and untouched platform subscription catalog; inspect preflight first",
+  "files": [
+    {
+      "order": 1,
+      "path": "docs/sql/existing-dev-phase7a-preflight.sql",
+      "sha256": "2f132a7c5b11cc5963ef2301f052484ecaa873945943558979d5fd5e8237f663"
+    },
+    {
+      "order": 2,
+      "path": "supabase/migrations/20261114040000_whatsapp_conversation_inbox.sql",
+      "sha256": "a5d419629115964bc15862e3047be3609063855c815017443ef7c6acc7ec307f"
+    },
+    {
+      "order": 3,
+      "path": "docs/sql/existing-dev-phase7a-postflight.sql",
+      "sha256": "43b405753e9bc41c02ba53dafe4754c25e86a7d2e404fb0e6fa11e8e296a7f16"
+    },
+    {
+      "order": 4,
+      "path": "docs/sql/existing-dev-phase7b-preflight.sql",
+      "sha256": "868199b16c0b3ff3a46b9ffc61f63908bbe662afea2aed790347453e6b413bf1"
+    },
+    {
+      "order": 5,
+      "path": "supabase/migrations/20261114050000_whatsapp_automation_draft_engine.sql",
+      "sha256": "ed7541042a4188fc07f6865389002cffc22ad7635b88fabb14d13cdb2e435e6a"
+    },
+    {
+      "order": 6,
+      "path": "docs/sql/existing-dev-phase7b-postflight.sql",
+      "sha256": "3eda59d35e4a339e7cabd9602c03b0054e8be0719a9ca53e839a12263271844e"
+    },
+    {
+      "order": 7,
+      "path": "docs/sql/existing-dev-phase8-preflight.sql",
+      "sha256": "62e8f927f050745e5f4bae37979d8f539bc57131d0ee1e4ff531bfee9950de27"
+    },
+    {
+      "order": 8,
+      "path": "supabase/manual/20261114180000_phase8_existing_development.sql",
+      "sha256": "ca2cca9a3156daf59771a9914b2e18c9d9887281cb0474d6128838615e091665"
+    },
+    {
+      "order": 9,
+      "path": "docs/sql/existing-dev-phase8-postflight.sql",
+      "sha256": "99d533318788a6443475c99d1b313ad2f66b917698d0b69b2f883190fc864462"
+    },
+    {
+      "order": 10,
+      "path": "docs/sql/integration-postflight.sql",
+      "sha256": "f2dc09859551b2dc915a098565b9777176ce8b139c77e222d752ffd562f6767b"
+    },
+    {
+      "order": 11,
+      "path": "docs/sql/integration-inventory.sql",
+      "sha256": "9af1b595b737f684cae4c42fca00cd89b065f975e448824845c6754964460bcc"
+    }
+  ]
+}

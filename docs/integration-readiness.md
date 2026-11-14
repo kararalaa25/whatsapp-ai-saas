@@ -1,5 +1,13 @@
 # Phase 8 / Phase 9 integration readiness
 
+> **Existing development database compatibility:** use
+> [the current exact SQL order](existing-development-migration.md) for the
+> user-confirmed platform catalog collision. Do not run the original Phase 8
+> installer on that database. The current application uses the separate Wasla
+> plan catalog and ingestion RPC described there. Earlier results below are
+> historical and do not establish the hosted schema state.
+
+
 ## Decision
 
 **Ready for a human-reviewed development-project rehearsal, not verified for merge

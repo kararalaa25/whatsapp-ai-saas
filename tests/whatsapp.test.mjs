@@ -51,7 +51,7 @@ function receiver({ storageFailure = false } = {}) {
       assert.equal(options.auth.persistSession, false)
       return { async rpc(name, args) {
         calls.push({ name, args })
-        assert.equal(name, 'ingest_whatsapp_ai_test_message')
+        assert.equal(name, 'ingest_wasla_whatsapp_test_message')
         assert.equal(Object.keys(args).length, 7)
         assert.equal('workspace_id' in args, false)
         if (storageFailure) return { data: null, error: { message: 'internal' } }

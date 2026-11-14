@@ -6,9 +6,10 @@ import { promisify } from 'node:util'
 import { createHmac } from 'node:crypto'
 import { loader } from '../../tests/helpers/load-ts.mjs'
 const run=promisify(execFile)
-const [container,runId,db,workspace,phone]=process.argv.slice(2)
+const [container,runId,db,workspace,phone,ingress='public.ingest_whatsapp_ai_test_message']=process.argv.slice(2)
 assert.match(container,/^[a-f0-9]{64}$/);assert.match(runId,/^[a-f0-9]{32}$/)
 assert.equal(db,'wasla_phase9a_suite');assert.match(workspace,/^[a-f0-9-]{36}$/);assert.match(phone,/^[0-9]+$/)
+assert.ok(['public.ingest_whatsapp_ai_test_message','public.ingest_wasla_whatsapp_test_message'].includes(ingress))
 const docker=async(...args)=>(await run('docker',['--context','default',...args])).stdout
 const info=JSON.parse(await docker('inspect',container))[0]
 assert.equal(info.Config.Labels['wasla.phase9a.run'],runId)
@@ -33,11 +34,11 @@ const literal=value=>value===null?'NULL':"'"+String(value).replaceAll("'","''")+
 let failId=null,failAfterCommitId=null,calls=0
 const secret='synthetic-phase9a-local-signing-secret'
 const load=loader({'@supabase/supabase-js':{createClient:()=>({async rpc(name,args){
- assert.equal(name,'ingest_whatsapp_ai_test_message');assert.equal('p_workspace_id' in args,false)
+ assert.equal(name,'ingest_wasla_whatsapp_test_message');assert.equal('p_workspace_id' in args,false)
  calls++;if(args.p_meta_message_id===failId)throw Error('Synthetic transport unavailable')
  const values=['p_phone_number_id','p_waba_id','p_meta_message_id','p_message_type','p_body','p_meta_timestamp','p_sender_id'].map(key=>literal(args[key])).join(',')
  try{
-  const data=await sql(`BEGIN; SET LOCAL ROLE service_role; SELECT public.ingest_whatsapp_ai_test_message(${values}); COMMIT;`)
+  const data=await sql(`BEGIN; SET LOCAL ROLE service_role; SELECT ${ingress}(${values}); COMMIT;`)
   if(args.p_meta_message_id===failAfterCommitId){failAfterCommitId=null;throw Error('Synthetic response lost after commit')}
   return {data,error:null}
  }

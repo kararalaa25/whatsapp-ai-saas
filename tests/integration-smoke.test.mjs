@@ -15,7 +15,7 @@ function fixture(url, options) {
   assert.ok(!url.includes('/rpc/'))
   if (options.headers['Accept-Profile'] === 'workspace_private') return response(406, { code: 'PGRST106' })
   if (url.includes('/auth/v1/user')) return response(200, { id: own })
-  if (url.includes('/subscription_plans?')) return response(200, ['business','pro','starter','trial'].map(id => ({ id, provisional: true })))
+  if (url.includes('/wasla_subscription_plans?')) return response(200, ['business','pro','starter','trial'].map(id => ({ id, provisional: true })))
   if (!options.headers.Authorization || url.includes(foreign)) return response(200, [])
   if (url.includes('/workspaces?')) return response(200, [{ id: own }])
   return response(200, [{ workspace_id: own }])
@@ -47,7 +47,7 @@ test('member owner-data leaks and foreign workspace leaks fail checks', async ()
 })
 test('missing schema and authentication failures cannot pass', async () => {
   const results = await runSmoke(env, (url, options) => url.includes('/auth/v1/user') ? response(401, {}) :
-    url.includes('/subscription_plans?') ? response(404, {}) : fixture(url, options))
+    url.includes('/wasla_subscription_plans?') ? response(404, {}) : fixture(url, options))
   assert.equal(results.find(r => r.name === 'Auth server accepts user JWT').status, 'FAIL')
   assert.equal(results.find(r => r.name === 'Four provisional plans visible').status, 'FAIL')
 })

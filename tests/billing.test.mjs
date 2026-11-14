@@ -15,7 +15,7 @@ function load(path, deps = {}, patch = s => s) {
 const model = load('../src/utils/billing/model.ts')
 const now = Date.parse('2026-11-14T12:00:00Z')
 const subscription = { plan_id:'trial',status:'trialing',interval:'monthly',currency:'IQD',trial_ends_at:'2026-11-20T00:00:00Z',period_ends_at:'2026-11-20T00:00:00Z',grace_ends_at:null,revision:0 }
-const migration = readFileSync(new URL('../supabase/migrations/20261114180000_phase8_subscriptions.sql',import.meta.url),'utf8')
+const migration = readFileSync(new URL('../supabase/manual/20261114180000_phase8_existing_development.sql',import.meta.url),'utf8')
 
 test('all subscription states respect bounded access and exact trial/grace expiration', () => {
  assert.equal(model.hasAccess(subscription,now),true)
@@ -51,7 +51,7 @@ test('forged billing events cannot activate or mutate anything',async () => {
  assert.doesNotMatch(readFileSync(new URL('../src/utils/billing/provider.ts',import.meta.url),'utf8'),/fetch\(|process\.env/)
 })
 test('database contracts deny upgrades, client quotas and forged payment writes',()=>{
- assert.match(migration,/REVOKE ALL ON public\.subscription_plans, public\.workspace_subscriptions FROM PUBLIC, anon, authenticated, service_role/)
+ assert.match(migration,/REVOKE ALL ON public\.wasla_subscription_plans, public\.workspace_subscriptions FROM PUBLIC, anon, authenticated, service_role/)
  assert.match(migration,/subscriptions_owner_read[\s\S]*?is_workspace_owner\(workspace_id\)/)
  assert.match(migration,/next_status NOT IN \('past_due','canceled','expired'\)/)
  assert.match(migration,/s\.revision IS DISTINCT FROM expected_revision/)
@@ -59,7 +59,7 @@ test('database contracts deny upgrades, client quotas and forged payment writes'
  assert.match(migration,/PRIMARY KEY\(provider,event_id\)/)
  assert.match(migration,/FOREIGN KEY \(workspace_id,invoice_id\)/)
  assert.doesNotMatch(migration,/GRANT (INSERT|UPDATE|DELETE|ALL)/)
- for (const name of ['subscription_plans','workspace_subscriptions','subscription_usage','subscription_reservations','subscription_audit','billing_invoices','billing_events']) assert.match(migration,new RegExp(`ALTER TABLE (public|workspace_private)\\.${name} ENABLE ROW LEVEL SECURITY`))
+ for (const name of ['wasla_subscription_plans','workspace_subscriptions','subscription_usage','subscription_reservations','subscription_audit','billing_invoices','billing_events']) assert.match(migration,new RegExp(`ALTER TABLE (public|workspace_private)\\.${name} ENABLE ROW LEVEL SECURITY`))
 })
 test('atomic metering has workspace lock, bounded period, global operation uniqueness and original abuse cap',()=>{
  assert.match(migration,/FOR UPDATE/)

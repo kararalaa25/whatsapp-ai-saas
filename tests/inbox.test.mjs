@@ -91,7 +91,7 @@ function harness(actor = 'a', mockProvider = false) {
     },
     async rpc(name, args) {
       calls.push({ name, args: structuredClone(args) })
-      if (name === 'ingest_whatsapp_ai_test_message') {
+      if (name === 'ingest_wasla_whatsapp_test_message') {
         if (rows.whatsapp_inbound_messages.some(row => row.meta_message_id === args.p_meta_message_id)) return ok('duplicate')
         const mapping = { '100': [A, connectionA], '101': [A, connectionA2], '200': [B, connectionB] }[args.p_phone_number_id]
         if (!mapping || args.p_waba_id !== '900') return ok('ignored')

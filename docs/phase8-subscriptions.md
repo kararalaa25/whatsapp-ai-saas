@@ -1,5 +1,13 @@
 # Phase 8 — subscriptions, entitlements and billing architecture
 
+> **Existing development database compatibility:** use
+> [the current exact SQL order](existing-development-migration.md) for the
+> user-confirmed platform catalog collision. Do not run the original Phase 8
+> installer on that database. The current application uses the separate Wasla
+> plan catalog and ingestion RPC described there. Earlier results below are
+> historical and do not establish the hosted schema state.
+
+
 ## Safety and delivery
 
 Branch: `feature/phase-8-subscriptions`. Initially based on stable main

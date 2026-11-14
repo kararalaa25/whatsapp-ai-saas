@@ -13,7 +13,7 @@ SELECT name,to_regclass(name) AS relation FROM unnest(ARRAY[
  'public.business_products','public.business_faqs','public.business_information',
  'public.whatsapp_inbox_state','public.whatsapp_reply_drafts',
  'public.whatsapp_automation_settings','public.whatsapp_automation_runs','public.whatsapp_automation_audit',
- 'public.subscription_plans','public.workspace_subscriptions',
+ 'public.subscription_plans','public.business_subscriptions','public.wasla_subscription_plans','public.workspace_subscriptions',
  'workspace_private.subscription_audit','workspace_private.subscription_usage',
  'workspace_private.subscription_reservations','workspace_private.billing_events',
  'workspace_private.billing_invoices','workspace_private.whatsapp_intake',
@@ -22,6 +22,7 @@ SELECT name,to_regprocedure(name) AS procedure FROM unnest(ARRAY[
  'auth.uid()','public.create_workspace(text)',
  'workspace_private.is_workspace_member(uuid)','workspace_private.is_workspace_owner(uuid)',
  'public.ingest_whatsapp_ai_test_message(text,text,text,text,text,timestamp with time zone,text)',
+ 'public.ingest_wasla_whatsapp_test_message(text,text,text,text,text,timestamp with time zone,text)',
  'public.reserve_subscription_ai(uuid,uuid,integer,text)',
  'public.get_workspace_billing(uuid)','public.get_whatsapp_intake(uuid,integer)',
  'public.reconcile_whatsapp_intake(uuid)']) name;

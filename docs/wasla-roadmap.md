@@ -32,6 +32,9 @@ deployment, credentials and real sending remain separate approvals.
 
 ## Final activation milestones — each requires independent authorization
 
+For the existing development platform catalog, first follow the
+[compatibility migration path](existing-development-migration.md).
+
 Preparation for these milestones is documented in the
 [integration readiness report](integration-readiness.md),
 [manual SQL Editor runbook](manual-supabase-migrations.md), and
