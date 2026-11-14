@@ -5,22 +5,30 @@ import Link from 'next/link'
 import type { AgentSettings, ChatMessage, Conversation } from '@/utils/ai/settings'
 import { saveAgent, newConversation, readConversation, previewReply, setConversationStatus, type Snapshot } from './actions'
 
-type Panel = { workspace: { id: string; name: string }; settings: AgentSettings; conversations: Conversation[]; storageAvailable: boolean; openAIAvailable: boolean }
+type Panel = { snapshot?: Snapshot | null; workspace: { id: string; name: string }; settings: AgentSettings; conversations: Conversation[]; storageAvailable: boolean; openAIAvailable: boolean }
 const field = 'mt-2 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-100'
 const button = 'inline-flex min-h-11 items-center justify-center rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50'
 
 export default function AgentStudio({ initial }: { initial: Panel }) {
   const [settings, setSettings] = useState(initial.settings)
   const [threads, setThreads] = useState(initial.conversations)
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(initial.snapshot ?? null)
+  const [messages, setMessages] = useState<ChatMessage[]>(initial.snapshot?.messages ?? [])
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<'demo' | 'openai'>('demo')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [pending, startTransition] = useTransition()
   const id = initial.workspace.id
+  const selectConversation = (conversationId: string | null) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('workspace', id)
+    if (conversationId) url.searchParams.set('conversation', conversationId)
+    else url.searchParams.delete('conversation')
+    window.history.replaceState(window.history.state, '', url)
+  }
   const adopt = (next: Snapshot) => {
+    selectConversation(next.conversation.id)
     setSnapshot(next); setMessages(next.messages)
     setThreads((previous) => [next.conversation, ...previous.filter((item) => item.id !== next.conversation.id)])
   }
@@ -57,7 +65,7 @@ export default function AgentStudio({ initial }: { initial: Panel }) {
           <div className="space-y-6">
             <section aria-labelledby="playground-heading" aria-busy={pending} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><h2 id="playground-heading" className="text-xl font-semibold">{snapshot?.conversation.channel === 'whatsapp_test' ? 'Customer draft inbox' : 'Test playground'}</h2><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium">{mode === 'demo' ? 'Simulated · no model calls' : 'OpenAI · draft only'}</span></div><p className="mt-2 text-sm leading-6 text-slate-600">{snapshot ? `${snapshot.conversation.title} · ${snapshot.conversation.status}` : 'Temporary demo. Start a saved conversation to keep history or use OpenAI.'}</p>
-                <div className="mt-4 flex flex-wrap items-center gap-3"><label className="text-sm">Provider<select className={field} disabled={pending} value={mode} onChange={(event) => setMode(event.target.value as 'demo' | 'openai')}><option value="demo">Demo (no API key needed)</option><option value="openai" disabled={!initial.openAIAvailable || !initial.storageAvailable}>OpenAI preview{!initial.openAIAvailable ? ' — not configured' : ''}</option></select></label><button type="button" disabled={pending} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-medium" onClick={() => { setSnapshot(null); setMessages([]); setMode('demo'); setError(''); setInput('') }}>Reset temporary demo</button></div>
+                <div className="mt-4 flex flex-wrap items-center gap-3"><label className="text-sm">Provider<select className={field} disabled={pending} value={mode} onChange={(event) => setMode(event.target.value as 'demo' | 'openai')}><option value="demo">Demo (no API key needed)</option><option value="openai" disabled={!initial.openAIAvailable || !initial.storageAvailable}>OpenAI preview{!initial.openAIAvailable ? ' — not configured' : ''}</option></select></label><button type="button" disabled={pending} className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-medium" onClick={() => { selectConversation(null); setSnapshot(null); setMessages([]); setMode('demo'); setError(''); setInput('') }}>Reset temporary demo</button></div>
               </div>
               <div role="log" aria-label="Conversation messages" aria-live="polite" className="max-h-[32rem] min-h-64 space-y-4 overflow-y-auto bg-slate-50 p-5 sm:p-7">
                 {!messages.length && <div className="py-12 text-center"><p className="font-semibold">Try a customer question</p><p className="mt-2 text-sm text-slate-600">Enable previews, then ask about opening hours or a product.</p></div>}

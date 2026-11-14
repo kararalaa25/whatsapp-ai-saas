@@ -6,8 +6,8 @@ import vm from 'node:vm'
 import ts from 'typescript'
 
 const require = createRequire(import.meta.url)
-function load(path, deps = {}, env = {}) {
-  const context = { exports: {}, process: { env }, require(name) {
+function load(path, deps = {}, env = {}, globals = {}) {
+  const context = { ...globals, exports: {}, process: { env }, require(name) {
     if (name === 'server-only') return {}
     if (name in deps) return deps[name]
     return require(name)
@@ -201,4 +201,161 @@ test('studio renders accessible demo controls and a migration-pending state with
   assert.match(html, /WhatsApp sending is locked/)
   assert.match(html, /role="status"/)
   assert.doesNotMatch(html, /OPENAI_API_KEY|SUPABASE_WEBHOOK_SECRET_KEY/)
+})
+
+// Exercise the actual action and component handlers against a persistent mock
+// store. A fresh render models a full reload; no database or provider is called.
+function persistenceHarness() {
+  const rows = new Map()
+  const calls = []
+  let readError = false
+  const client = {
+    from(table) {
+      const filters = {}
+      let descending = false
+      const result = () => {
+        assert.equal(filters.workspace_id, workspace)
+        if (readError) return { data: null, error: { code: '42501' } }
+        if (table === 'ai_agent_settings') return { data: config, error: null }
+        const row = rows.get(filters.id ?? filters.conversation_id)
+        if (table === 'ai_messages') {
+          const messages = (row?.messages ?? []).slice()
+          return { data: descending ? messages.reverse().slice(0, 20) : messages, error: null }
+        }
+        return { data: filters.id ? row?.conversation ?? null : [...rows.values()].map(r => r.conversation), error: null }
+      }
+      const q = { select() { return q }, eq(column, value) { filters[column] = value; return q },
+        order(column, options) { if (column === 'position') descending = options.ascending === false; return q },
+        async limit() { return result() }, async maybeSingle() { return result() } }
+      return q
+    },
+    async rpc(name, args) {
+      calls.push({ name, args })
+      assert.equal(args.p_workspace_id, workspace)
+      if (name === 'create_ai_playground') {
+        rows.set(conversationId, { conversation: { id: conversationId, channel: 'playground', status: 'open', revision: 0, title: 'Playground conversation', updated_at: '2026-11-14' }, messages: [] })
+        return { data: conversationId, error: null }
+      }
+      assert.equal(name, 'save_ai_turn')
+      const row = rows.get(args.p_conversation_id)
+      assert.equal(args.p_revision, row.conversation.revision)
+      row.messages.push({ role: 'user', content: args.p_customer_message, provider: 'customer' }, { role: 'assistant', content: args.p_reply, provider: args.p_provider })
+      row.conversation = { ...row.conversation, revision: row.conversation.revision + 1 }
+      return { data: null, error: null }
+    },
+  }
+  const actions = load('../src/app/dashboard/agent/actions.ts', {
+    'next/cache': { revalidatePath() {} },
+    '@/utils/supabase/server': { createClient: async () => client },
+    '@/utils/ai/access': { requireAgentOwner: async (_client, id) => { if (id !== workspace) throw Error('Denied'); return { id, name: 'Shop' } } },
+    '@/utils/ai/settings': settings, '@/utils/ai/reply': replies,
+  })
+  return { actions, calls, failReads() { readError = true } }
+}
+
+function studioHarness(initial, actions, browser) {
+  const React = require('react')
+  const values = []
+  let cursor = 0
+  let work
+  const hooks = { ...React, useState(value) {
+    const index = cursor++
+    if (!(index in values)) values[index] = value
+    return [values[index], next => { values[index] = typeof next === 'function' ? next(values[index]) : next }]
+  }, useTransition() { return [false, callback => { work = callback() }] } }
+  const { default: Studio } = load('../src/app/dashboard/agent/studio.tsx', {
+    react: hooks, './actions': actions,
+    'next/link': { default: 'a' },
+  }, {}, { window: browser, URL })
+  function render() { cursor = 0; return Studio({ initial }) }
+  function elements(node) {
+    if (!node || typeof node !== 'object') return []
+    return [node, ...[node.props?.children].flat(Infinity).flatMap(elements)]
+  }
+  return {
+    tree: render,
+    async click(label) {
+      const node = elements(render()).find(n => n.type === 'button' && n.props.children === label)
+      assert.ok(node, `Missing button: ${label}`)
+      node.props.onClick(); await work
+    },
+    async send(text) {
+      const input = elements(render()).find(n => n.type === 'textarea' && n.props.placeholder === 'Hi! What time do you open?')
+      input.props.onChange({ target: { value: text } })
+      const form = elements(render()).find(n => n.type === 'form' && elements(n).some(child => child.props?.type === 'submit' && child.props.children === 'Generate reply preview'))
+      form.props.onSubmit({ preventDefault() {} }); await work
+    },
+    messages() { return elements(render()).find(n => n.props?.role === 'log') },
+  }
+}
+
+test('New playground adopts saved mode; demo turns survive a full reload of the selected URL', async () => {
+  const harness = persistenceHarness()
+  const browser = { location: { href: `https://example.test/dashboard/agent?workspace=${workspace}` }, history: { state: { next: true }, replaceState(state, _title, url) { assert.equal(state.next, true); browser.location.href = String(url) } } }
+  const studio = studioHarness(await harness.actions.loadAgentPanel(workspace), harness.actions, browser)
+  await studio.click('New playground')
+  assert.equal(new URL(browser.location.href).searchParams.get('conversation'), conversationId)
+  await studio.send('Synthetic opening hours question')
+  assert.deepEqual(harness.calls.map(c => c.name), ['create_ai_playground', 'save_ai_turn'])
+  assert.equal(harness.calls[1].args.p_conversation_id, conversationId)
+  assert.equal(harness.calls[1].args.p_provider, 'demo')
+  const url = new URL(browser.location.href)
+  const refreshed = await harness.actions.loadAgentPanel(url.searchParams.get('workspace'), url.searchParams.get('conversation'))
+  assert.equal(refreshed.snapshot.conversation.id, conversationId)
+  assert.equal(refreshed.snapshot.messages.length, 2)
+  assert.equal(refreshed.snapshot.messages[0].content, 'Synthetic opening hours question')
+  const reloadedStudio = studioHarness(refreshed, harness.actions, browser)
+  assert.match(JSON.stringify(reloadedStudio.messages()), /Synthetic opening hours question/)
+  await reloadedStudio.send('A second question after refresh')
+  assert.equal(harness.calls[2].args.p_revision, 1)
+  assert.equal((await harness.actions.readConversation(workspace, conversationId)).data.messages.length, 4)
+  await reloadedStudio.click('Reset temporary demo')
+  assert.equal(new URL(browser.location.href).searchParams.has('conversation'), false)
+  assert.equal(new URL(browser.location.href).searchParams.get('workspace'), workspace)
+  await reloadedStudio.send('Unsaved temporary question')
+  assert.equal(harness.calls.length, 3)
+})
+
+test('selected conversation reload fails closed for invalid IDs, foreign tenants, missing rows and read errors', async () => {
+  const harness = persistenceHarness()
+  await harness.actions.newConversation(workspace)
+  for (const id of ['invalid', other]) await assert.rejects(harness.actions.loadAgentPanel(workspace, id))
+  await assert.rejects(harness.actions.loadAgentPanel(other, conversationId))
+  harness.failReads()
+  await assert.rejects(harness.actions.loadAgentPanel(workspace, conversationId))
+  assert.equal(harness.calls.length, 1)
+})
+
+test('failed New playground reports an error and never selects a saved URL', async () => {
+  const harness = persistenceHarness()
+  const panel = await harness.actions.loadAgentPanel(workspace)
+  const browser = { location: { href: `https://example.test/dashboard/agent?workspace=${workspace}` }, history: { replaceState() { assert.fail('Failed creation must not select a conversation') } } }
+  const studio = studioHarness(panel, { ...harness.actions, newConversation: async () => ({ ok: false, error: 'Creation denied' }) }, browser)
+  await studio.click('New playground')
+  assert.match(JSON.stringify(studio.tree()), /Creation denied/)
+})
+
+test('page forwards the selected URL to the loader and renders unavailable selections as errors', async () => {
+  const calls = []
+  const panel = { workspace: { id: workspace, name: 'Shop' }, snapshot: { conversation: { id: conversationId }, messages: [] } }
+  const { default: Page } = load('../src/app/dashboard/agent/page.tsx', {
+    'next/link': { default: 'a' }, 'next/server': { connection: async () => {} },
+    './studio': { default: 'studio' }, './actions': { loadAgentPanel: async (...args) => {
+      calls.push(args)
+      if (args[1] !== conversationId) throw Error('Unavailable')
+      return panel
+    } },
+  })
+  const render = async params => {
+    const suspense = Page({ searchParams: Promise.resolve(params) })
+    const content = suspense.props.children
+    return content.type(content.props)
+  }
+  const studio = await render({ workspace, conversation: conversationId })
+  assert.deepEqual(calls[0], [workspace, conversationId])
+  assert.equal(studio.props.initial.snapshot.conversation.id, conversationId)
+  assert.equal(studio.key, `${workspace}:${conversationId}`)
+  const unavailable = await render({ workspace, conversation: [conversationId, other] })
+  assert.match(JSON.stringify(unavailable), /Agent studio unavailable/)
+  assert.equal(calls[1][1], '')
 })

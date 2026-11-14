@@ -22,13 +22,16 @@ async function ownerClient(workspaceId: string) {
   return { supabase, workspace }
 }
 
-export async function loadAgentPanel(workspaceId: string) {
+export async function loadAgentPanel(workspaceId: string, conversationId?: string) {
   const { supabase, workspace } = await ownerClient(workspaceId)
   const [config, threads] = await Promise.all([
     supabase.from('ai_agent_settings').select(settingsColumns).eq('workspace_id', workspace.id).maybeSingle(),
     supabase.from('ai_conversations').select(conversationColumns).eq('workspace_id', workspace.id).order('updated_at', { ascending: false }).limit(30),
   ])
+  const selected = conversationId === undefined ? undefined : await readConversation(workspace.id, conversationId)
+  if (selected && !selected.ok) throw new Error(selected.error)
   return {
+    snapshot: selected?.ok ? selected.data : null,
     workspace,
     settings: config.data ? settingsSchema.parse(config.data) : defaultSettings,
     conversations: (threads.data ?? []) as Conversation[],
