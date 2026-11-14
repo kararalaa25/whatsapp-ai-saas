@@ -1,0 +1,80 @@
+{
+  "base_commit": "7bbb1d8fcda7110425feeb9595e9ecdbb4df105f",
+  "phase8_commit": "e5f44b43d84dcfe5e49f66a8657132982339193e",
+  "cli": {
+    "version": "2.75.0",
+    "archive_sha256": "e5597462f865d5ac72af0453358e37ecb0d85962ad6914a114a53de847303bde",
+    "official_checksum_verified": true
+  },
+  "docker": {
+    "endpoint": "unix:///var/run/docker.sock",
+    "engine": "29.9.2",
+    "driver": "vfs",
+    "root": "/home/dockerd/.local/share/docker"
+  },
+  "tooling_failures": [
+    {
+      "step": "default official registry pull",
+      "status": "FAIL",
+      "reason": "public.ecr.aws HTTP 403"
+    },
+    {
+      "step": "supported Docker Hub fallback",
+      "status": "FAIL",
+      "reason": "Docker vfs layer registration: no space left on device"
+    }
+  ],
+  "integration": {
+    "full_migration_chain": {
+      "status": "BLOCKED",
+      "reason": "Supabase stack could not be provisioned; no substitute shared endpoint"
+    },
+    "real_auth_and_jwts": {
+      "status": "BLOCKED",
+      "reason": "Supabase stack could not be provisioned; no substitute shared endpoint"
+    },
+    "postgrest": {
+      "status": "BLOCKED",
+      "reason": "Supabase stack could not be provisioned; no substitute shared endpoint"
+    },
+    "authenticated_browser": {
+      "status": "BLOCKED",
+      "reason": "Supabase stack could not be provisioned; no substitute shared endpoint"
+    }
+  },
+  "not_tested": [
+    "signup/login/logout",
+    "session refresh/revocation",
+    "SSR cookies",
+    "live RPC/API security",
+    "authenticated UI and viewport tests"
+  ],
+  "regressions": {
+    "unit": {
+      "status": "PASS",
+      "passed": 212,
+      "failed": 0
+    },
+    "typescript": {
+      "status": "PASS"
+    },
+    "lint": {
+      "status": "PASS",
+      "existing_warnings": 1
+    },
+    "production_build": {
+      "status": "PASS"
+    }
+  },
+  "schema_writes": false,
+  "synthetic_users_created": false,
+  "next_dev_started": false,
+  "cleanup": {
+    "own_containers_remaining": 0,
+    "own_volumes_remaining": 0,
+    "own_networks_remaining": 0,
+    "preexisting_postgres_image_retained": true
+  },
+  "app_and_migrations_unchanged": true,
+  "keys_or_sessions_in_evidence": false
+}
