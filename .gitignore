@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Isolated verification scratch logs and generated local evidence
+/work/
+/verification/**/__pycache__/
