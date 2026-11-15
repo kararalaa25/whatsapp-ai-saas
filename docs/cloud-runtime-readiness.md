@@ -1,5 +1,7 @@
 # Multi-business Cloud runtime — 15 November 2026
 
+**Follow-up:** [Pre-staging verification](cloud-prestaging-verification.md) records the completed disposable PostgreSQL tests and pending-migration binding fix. This page retains the earlier implementation-pass evidence; hosted installation is still pending.
+
 Branch: `integration/phase8-existing-dev-compatibility`. Baseline: `4fa8cffa080205ce1a3196aa5ce95052dcbfa750`.
 
 **Decision: implemented for sandbox review; NOT approved for live messaging or staging sign-off.** Both `CLOUD_INSTALLATION_APPROVED` and `CLOUD_PROVIDER_RELEASE_APPROVED` in `src/utils/cloud/security.ts` are deliberately false. No environment variable or workspace setting can bypass them. Nothing was migrated, deployed, sent, registered with Meta or changed in hosted Supabase. Previously applied compatible Phase 8 remains untouched. Legacy test inbox and draft-only automation retain their outbound hard stops.

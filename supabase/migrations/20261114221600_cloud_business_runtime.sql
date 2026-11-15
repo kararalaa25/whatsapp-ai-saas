@@ -1,5 +1,6 @@
 -- PENDING REVIEW ONLY. Requires the already-applied compatible Phase 8 + 7A/7B.
--- This file has NOT been applied. Never replay historical installers.
+-- Pending for hosted development; verified only in disposable local PostgreSQL.
+-- Never replay historical installers.
 -- Provider execution remains independently disabled in application code.
 BEGIN;
 DO $$DECLARE object_name text; BEGIN
@@ -394,7 +395,7 @@ BEGIN
  ELSIF p_action IN ('takeover','release') THEN
   SELECT * INTO STRICT t FROM public.cloud_threads WHERE workspace_id=p_workspace_id AND id=p_object_id FOR UPDATE;
   IF t.revision IS DISTINCT FROM p_revision THEN RAISE EXCEPTION 'Stale thread' USING ERRCODE='40001'; END IF;
-  IF p_action='release' AND EXISTS(SELECT 1 FROM workspace_private.cloud_attempts a JOIN public.cloud_drafts d ON d.workspace_id=a.workspace_id AND d.id=a.draft_id WHERE d.workspace_id=p_workspace_id AND d.thread_id=t.id AND a.status IN ('unknown','dispatching')) THEN RAISE EXCEPTION 'Delivery reconciliation required'; END IF;
+  IF p_action='release' AND EXISTS(SELECT 1 FROM workspace_private.cloud_attempts a JOIN public.cloud_drafts pending_draft ON pending_draft.workspace_id=a.workspace_id AND pending_draft.id=a.draft_id WHERE pending_draft.workspace_id=p_workspace_id AND pending_draft.thread_id=t.id AND a.status IN ('unknown','dispatching')) THEN RAISE EXCEPTION 'Delivery reconciliation required'; END IF;
   UPDATE public.cloud_threads SET human_takeover=p_action='takeover',revision=revision+1 WHERE id=t.id RETURNING * INTO t;
   IF p_action='release' THEN
    SELECT id INTO latest_job FROM workspace_private.cloud_jobs WHERE workspace_id=p_workspace_id AND thread_id=t.id AND kind IN ('text','audio') ORDER BY intake_order DESC LIMIT 1;

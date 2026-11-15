@@ -1,0 +1,223 @@
+{
+  "run_id": "b5a22d4a1f02414384b9c1974b84ea35",
+  "engine": "PostgreSQL 17.12 (Debian 17.12-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "isolation": {
+    "endpoint": "unix:///var/run/docker.sock",
+    "network": "none",
+    "ports": {},
+    "mount_types": [],
+    "tmpfs": {
+      "/tmp": "rw,noexec,nosuid,size=16m",
+      "/var/lib/postgresql/data": "rw,noexec,nosuid,size=512m",
+      "/var/run/postgresql": "rw,noexec,nosuid,size=16m"
+    },
+    "image_reference": "postgres@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07",
+    "image_id": "sha256:140936e8665d5274aa58df31b722693b4b451c541bb0f1a263a345d424bfacb4",
+    "readonly_root": true
+  },
+  "tests": [
+    {
+      "test": "__main__.CloudTests.test_audio_budget_start_and_lease_binding",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_catalog_function_acl_and_private_rls",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_combined_number_capacity_concurrency",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_concurrent_duplicate",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_context_retrieval_and_foreign_composite_fk",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_dedup_collision_and_trusted_mapping",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_dispatch_acceptance_status_monotonic_and_unknown_no_retry",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_existing_thread_retained_when_trial_expires",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_expired_acceptance_and_batch_progression",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_human_release_and_manual_source_bound_dispatch",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_invitation_confirmed_email_and_member_access",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_last_ai_unit_and_idempotency",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_last_conversation_unit_race",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_manual_subscription_review_is_not_activation",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_no_client_private_access_or_service_table_bypass",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_no_unauthorized_upgrade_or_client_writes",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_owner_rls_and_workspace_rpc",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_projection_failure_retains_intake_without_quota",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_queue_saturation_rollback_and_other_workspace",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_signup_actor_workspace_binding_and_fail_closed",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_takeover_blocks_generation_and_dispatch",
+      "result": "pass"
+    },
+    {
+      "test": "__main__.CloudTests.test_unprojected_new_source_rejects_old_draft",
+      "result": "pass"
+    }
+  ],
+  "cleanup": true,
+  "read_only_scripts": [
+    {
+      "database": "wasla_phase9a_suite",
+      "script": "docs/sql/existing-dev-phase7a-preflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_suite",
+      "script": "docs/sql/existing-dev-phase7a-postflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_suite",
+      "script": "docs/sql/existing-dev-phase7b-preflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_suite",
+      "script": "docs/sql/existing-dev-phase7b-postflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_suite",
+      "script": "docs/sql/existing-dev-phase8-preflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_suite",
+      "script": "docs/sql/existing-dev-phase8-postflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "script": "docs/sql/existing-dev-phase7a-preflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "script": "docs/sql/existing-dev-phase7a-postflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "script": "docs/sql/existing-dev-phase7b-preflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "script": "docs/sql/existing-dev-phase7b-postflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "script": "docs/sql/existing-dev-phase8-preflight.sql",
+      "result": "pass"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "script": "docs/sql/existing-dev-phase8-postflight.sql",
+      "result": "pass"
+    }
+  ],
+  "guard_checks": [
+    {
+      "database": "wasla_phase9a_suite",
+      "missing_phase7b": "rejected atomically"
+    },
+    {
+      "database": "wasla_phase9a_suite",
+      "original_conflicting_installer": "rejected without platform changes"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "missing_phase7b": "rejected atomically"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "original_conflicting_installer": "rejected without platform changes"
+    }
+  ],
+  "preservation": [
+    {
+      "database": "wasla_phase9a_suite",
+      "platform_catalog": "unchanged",
+      "existing_function_definitions": "unchanged"
+    },
+    {
+      "database": "wasla_phase9a_repeat",
+      "platform_catalog": "unchanged",
+      "existing_function_definitions": "unchanged"
+    }
+  ],
+  "migration_chain": [
+    "supabase/migrations/20261114000000_workspace_foundation.sql",
+    "supabase/migrations/20261114010000_whatsapp_test_foundation.sql",
+    "supabase/migrations/20261114020000_ai_agent_playground.sql",
+    "supabase/migrations/20261114030000_business_knowledge_catalog.sql",
+    "supabase/migrations/20261114040000_whatsapp_conversation_inbox.sql",
+    "supabase/migrations/20261114050000_whatsapp_automation_draft_engine.sql",
+    "supabase/manual/20261114180000_phase8_existing_development.sql",
+    "supabase/migrations/20261114221600_cloud_business_runtime.sql"
+  ],
+  "migration_sha256": {
+    "supabase/migrations/20261114000000_workspace_foundation.sql": "294370c3d8a942582b2c67e2b9e8051c79f856a13233fc467931a7b674c18221",
+    "supabase/migrations/20261114010000_whatsapp_test_foundation.sql": "4a4b42f9fa6f5538131dacfbedfd63ef804891b69c2295da8a49ba665aed6c3c",
+    "supabase/migrations/20261114020000_ai_agent_playground.sql": "fce7ea8be0f3e63472039d31add3b1e143cbbc10d10b9c0e06e315ce019703d9",
+    "supabase/migrations/20261114030000_business_knowledge_catalog.sql": "8eb04128202da2803a932e5df62fe13c45fe7247ae880b6ea08d0abe0dc7844d",
+    "supabase/migrations/20261114040000_whatsapp_conversation_inbox.sql": "a5d419629115964bc15862e3047be3609063855c815017443ef7c6acc7ec307f",
+    "supabase/migrations/20261114050000_whatsapp_automation_draft_engine.sql": "ed7541042a4188fc07f6865389002cffc22ad7635b88fabb14d13cdb2e435e6a",
+    "supabase/manual/20261114180000_phase8_existing_development.sql": "ca2cca9a3156daf59771a9914b2e18c9d9887281cb0474d6128838615e091665",
+    "supabase/migrations/20261114221600_cloud_business_runtime.sql": "e3fc41f28e8e8fe59b457dca3833658870af1d4488f5eeb927c42aa2aed81327"
+  },
+  "two_fresh_setups_platform_preserved_replay_rejected": "PASS",
+  "scope": "Real PostgreSQL roles/RLS/SQL concurrency with synthetic auth.uid claims; NOT real Supabase Auth/JWT/PostgREST/browser or provider traffic."
+}

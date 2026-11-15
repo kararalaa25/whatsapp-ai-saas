@@ -75,7 +75,7 @@ verified separately with synthetic accounts. Mocked sessions cannot close that g
 - `supabase`: historical schema sources and the compatible manual installer.
 - `verification`: explicitly scoped database/browser evidence and tools.
 
-[Cloud runtime readiness](docs/cloud-runtime-readiness.md) is the current checkpoint;
+[Pre-staging verification](docs/cloud-prestaging-verification.md) is the current checkpoint;
 [MVP readiness](docs/mvp-readiness.md) records the earlier completed UI pass.
 No automatic migration, deployment, merge, payment activation or outbound send is
 authorized or performed by these instructions.

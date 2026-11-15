@@ -1,0 +1,44 @@
+{
+  "baseline": "b09e46bdfaac71f8dafd4d6f95ef50f8971ac45f",
+  "branch": "integration/phase8-existing-dev-compatibility",
+  "date": "2026-11-15",
+  "node": "24.22.1",
+  "npm": "11.9.0",
+  "checks": {
+    "cloud_postgresql": {
+      "status": "PASS",
+      "count": 22,
+      "evidence": "database-results.json"
+    },
+    "existing_postgresql_regressions": {
+      "status": "PASS",
+      "count": 30,
+      "evidence": "compatibility-regression-results.json"
+    },
+    "application_tests": {
+      "status": "PASS",
+      "count": 312,
+      "skipped": 0,
+      "scope": "Mocked provider/DB and source assertions; separate from PostgreSQL evidence"
+    },
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "production_build": "PASS",
+    "sql_grammar": "PASS: 62 SQL statements, 22 PLpgsql functions",
+    "real_auth_jwt_postgrest_ssr": "NOT TESTED",
+    "authenticated_browser": "NOT TESTED",
+    "real_meta_and_stt": "BLOCKED: approval, assets and external credentials required",
+    "hosted_migration": "NOT EXECUTED"
+  },
+  "defect_fixed": "PostgreSQL 42702: manage_cloud table alias d conflicted with PLpgsql variable; renamed pending_draft in unapplied Cloud migration.",
+  "source_gates": {
+    "cloud_installation": false,
+    "provider_release": false,
+    "payments": false
+  },
+  "hosted_access": false,
+  "real_provider_calls": false,
+  "deployment": false,
+  "merge": false,
+  "decision": "Hold staging sign-off pending actual Auth/PostgREST/browser and approved provider/retention acceptance."
+}
